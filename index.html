@@ -88,15 +88,14 @@
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // ВСТАВЬТЕ СВОИ ДАННЫЕ ИЗ КОНСОЛИ FIREBASE СЮДА
     const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_AUTH_DOMAIN",
+        apiKey: "AIzaSyBwWB5zvT-pFtkzvFIuttrT6-lISINxj9w",
+        authDomain: "text-transmission.firebaseapp.com",
         databaseURL: "https://text-transmission-default-rtdb.firebaseio.com",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_STORAGE_BUCKET",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
+        projectId: "text-transmission",
+        storageBucket: "text-transmission.firebasestorage.app",
+        messagingSenderId: "384433637634",
+        appId: "1:384433637634:web:97f27e2e82ef48ef4dda1b"
     };
 
     const app = initializeApp(firebaseConfig);
