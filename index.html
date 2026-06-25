@@ -25,7 +25,7 @@
             text-align: center;
             position: relative;
         }
-        textarea {
+        #text-input {
             width: 100%;
             height: 150px;
             background-color: #2d2d2d;
@@ -34,30 +34,44 @@
             border-radius: 4px;
             padding: 10px;
             box-sizing: border-box;
-            resize: none;
             margin-bottom: 15px;
+            outline: none;
+            text-align: left;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.5;
             caret-color: #4caf50;
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+        }
+        #text-input:empty::before {
+            content: "Введите текст здесь...";
+            color: #666;
+            pointer-events: none;
+        }
+        #text-input span.char {
+            display: inline;
+            white-space: pre-wrap;
+            animation: fadeInChar 0.3s ease forwards;
+        }
+        @keyframes fadeInChar {
+            from { opacity: 0; }
+            to   { opacity: 1; }
         }
         button {
             background-color: #4caf50;
             color: white;
             border: none;
             padding: 10px 20px;
-            text-align: center;
-            text-decoration: none;
-            display: inline-block;
             font-size: 16px;
             border-radius: 4px;
             cursor: pointer;
             width: 100%;
             margin-bottom: 10px;
         }
-        button.login {
-            background-color: #4285f4;
-        }
-        button.copy {
-            background-color: #00bcd4;
-        }
+        button.login { background-color: #4285f4; }
+        button.copy  { background-color: #00bcd4; }
         button.logout-icon {
             background: none;
             border: none;
@@ -72,9 +86,7 @@
             right: 15px;
             line-height: 1;
         }
-        .hidden {
-            display: none;
-        }
+        .hidden { display: none; }
         #user-info {
             margin-bottom: 15px;
             font-size: 14px;
@@ -101,7 +113,7 @@
         <div id="user-info">
             <span>Вы вошли как: <span id="user-email"></span></span>
         </div>
-        <textarea id="text-input" placeholder="Введите текст здесь..."></textarea>
+        <div id="text-input" contenteditable="true" spellcheck="false"></div>
         <button class="copy" id="btn-copy">Копировать всё</button>
     </div>
 </div>
@@ -126,17 +138,61 @@
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
-    const authScreen = document.getElementById('auth-screen');
-    const appScreen = document.getElementById('app-screen');
-    const btnLogin = document.getElementById('btn-login');
-    const btnLogout = document.getElementById('btn-logout');
-    const btnCopy = document.getElementById('btn-copy');
-    const textInput = document.getElementById('text-input');
+    const authScreen   = document.getElementById('auth-screen');
+    const appScreen    = document.getElementById('app-screen');
+    const btnLogin     = document.getElementById('btn-login');
+    const btnLogout    = document.getElementById('btn-logout');
+    const btnCopy      = document.getElementById('btn-copy');
+    const textInput    = document.getElementById('text-input');
     const userEmailHtml = document.getElementById('user-email');
 
     let currentUser = null;
     let isTyping = false;
     let typingTimeout = null;
+    let lastText = '';   // следим за предыдущим состоянием текста
+
+    // Получить чистый текст из contenteditable
+    function getPlainText() {
+        return textInput.innerText.replace(/\u00a0/g, ' ');
+    }
+
+    // Загрузить текст с Firebase без анимации (просто спан без класса)
+    function loadTextSilently(text) {
+        textInput.innerHTML = '';
+        if (!text) return;
+        const span = document.createElement('span');
+        span.style.whiteSpace = 'pre-wrap';
+        span.textContent = text;
+        textInput.appendChild(span);
+        lastText = text;
+        // Поставить курсор в конец
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(textInput);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    // Вставить один символ с анимацией в позицию курсора
+    function insertAnimatedChar(char) {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+
+        const span = document.createElement('span');
+        span.className = 'char';
+        span.textContent = char;
+        range.insertNode(span);
+
+        // Сдвинуть курсор после вставленного символа
+        range.setStartAfter(span);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -144,65 +200,117 @@
             userEmailHtml.textContent = user.email;
             authScreen.classList.add('hidden');
             appScreen.classList.remove('hidden');
-            
+
             const textRef = ref(db, 'users/' + user.uid + '/text');
             onValue(textRef, (snapshot) => {
-                const data = snapshot.val();
-                if (data !== null && !isTyping) {
-                    textInput.value = data;
+                const data = snapshot.val() ?? '';
+                if (!isTyping) {
+                    loadTextSilently(data);
                 }
             });
         } else {
             currentUser = null;
             authScreen.classList.remove('hidden');
             appScreen.classList.add('hidden');
-            textInput.value = '';
+            textInput.innerHTML = '';
+            lastText = '';
         }
     });
 
-    textInput.addEventListener('input', () => {
-        if (currentUser) {
+    // Перехватываем нажатия клавиш — только для печатаемых символов
+    textInput.addEventListener('keydown', (e) => {
+        if (!currentUser) return;
+
+        // Пропускаем управляющие клавиши (стрелки, Ctrl, и т.д.)
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',
+             'Home','End','PageUp','PageDown',
+             'Shift','Control','Alt','Meta','CapsLock',
+             'Tab','Escape','F1','F2','F3','F4','F5',
+             'F6','F7','F8','F9','F10','F11','F12'].includes(e.key)) return;
+
+        // Backspace и Delete — позволяем браузеру обработать, потом сохраняем
+        if (e.key === 'Backspace' || e.key === 'Delete') {
             isTyping = true;
-            
             clearTimeout(typingTimeout);
+            setTimeout(() => {
+                saveText();
+                typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
+            }, 0);
+            return;
+        }
 
-            set(ref(db, 'users/' + currentUser.uid + '/text'), textInput.value)
-                .catch((error) => console.error("Ошибка сохранения:", error));
+        // Enter — вставляем перенос строки с анимацией
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            insertAnimatedChar('\n');
+            saveText();
+            return;
+        }
 
-            typingTimeout = setTimeout(() => {
-                isTyping = false;
-            }, 1000);
+        // Обычный символ — перехватываем и анимируем
+        if (e.key.length === 1) {
+            e.preventDefault();
+            insertAnimatedChar(e.key);
+            saveText();
         }
     });
+
+    // Обработка вставки (Ctrl+V / долгое нажатие → Вставить)
+    textInput.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain');
+        if (!text) return;
+
+        // Вставляем как обычный текст без анимации (большой блок)
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        range.deleteContents();
+        const span = document.createElement('span');
+        span.style.whiteSpace = 'pre-wrap';
+        span.textContent = text;
+        range.insertNode(span);
+        range.setStartAfter(span);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        saveText();
+    });
+
+    function saveText() {
+        isTyping = true;
+        const text = getPlainText();
+        set(ref(db, 'users/' + currentUser.uid + '/text'), text)
+            .catch((error) => console.error("Ошибка сохранения:", error));
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
+    }
 
     btnCopy.addEventListener('click', () => {
-        textInput.select();
-        textInput.setSelectionRange(0, 99999);
-        navigator.clipboard.writeText(textInput.value)
+        const text = getPlainText();
+        navigator.clipboard.writeText(text)
             .then(() => {
-                const originalText = btnCopy.textContent;
+                const orig = btnCopy.textContent;
                 btnCopy.textContent = "Скопировано!";
                 btnCopy.style.backgroundColor = "#4caf50";
                 setTimeout(() => {
-                    btnCopy.textContent = originalText;
+                    btnCopy.textContent = orig;
                     btnCopy.style.backgroundColor = "#00bcd4";
                 }, 1500);
             })
-            .catch((error) => {
-                console.error("Ошибка копирования:", error);
-            });
+            .catch((error) => console.error("Ошибка копирования:", error));
     });
 
     btnLogin.addEventListener('click', () => {
-        signInWithPopup(auth, provider).catch((error) => {
-            console.error("Ошибка авторизации:", error);
-        });
+        signInWithPopup(auth, provider)
+            .catch((error) => console.error("Ошибка авторизации:", error));
     });
 
     btnLogout.addEventListener('click', () => {
-        signOut(auth).catch((error) => {
-            console.error("Ошибка выхода:", error);
-        });
+        signOut(auth)
+            .catch((error) => console.error("Ошибка выхода:", error));
     });
 </script>
 
