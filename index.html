@@ -27,9 +27,14 @@
             text-align: center;
             position: relative;
         }
+
+
         #text-input {
             width: 100%;
-            min-height: 150px;
+            height: 150px;
+            min-height: 60px;
+            max-height: 600px;
+            resize: vertical;
             background-color: #2d2d2d;
             color: #ffffff;
             border: 1px solid #444;
@@ -54,49 +59,60 @@
         }
 
 
-        /* ── Анимации символов ── */
+        /* ── Анимации ── */
         @keyframes anim-fade {
             from { opacity: 0; }
             to   { opacity: 1; }
         }
         @keyframes anim-slide-up {
-            from { opacity: 0; transform: translateY(8px); }
+            from { opacity: 0; transform: translateY(6px); }
             to   { opacity: 1; transform: translateY(0); }
         }
         @keyframes anim-scale {
-            from { opacity: 0; transform: scale(0); }
+            from { opacity: 0; transform: scale(0.2); }
             to   { opacity: 1; transform: scale(1); }
         }
         @keyframes anim-glow {
-            0%   { opacity: 0; text-shadow: 0 0 8px #4caf50, 0 0 20px #4caf50; color: #a5ffac; }
-            60%  { opacity: 1; text-shadow: 0 0 6px #4caf50; color: #d0ffd3; }
-            100% { opacity: 1; text-shadow: none; color: #ffffff; }
+            0%   { opacity: 0; color: #4caf50; text-shadow: 0 0 10px #4caf50, 0 0 25px #4caf50; }
+            50%  { opacity: 1; color: #a5ffac; text-shadow: 0 0 6px #4caf50; }
+            100% { opacity: 1; color: #ffffff;  text-shadow: none; }
         }
         @keyframes anim-bounce {
-            0%   { opacity: 0; transform: translateY(-12px); }
-            60%  { opacity: 1; transform: translateY(3px); }
-            80%  { transform: translateY(-2px); }
+            0%   { opacity: 0; transform: translateY(-10px); }
+            55%  { opacity: 1; transform: translateY(3px); }
+            75%  { transform: translateY(-2px); }
             100% { opacity: 1; transform: translateY(0); }
         }
         @keyframes anim-typewriter {
-            0%   { opacity: 1; color: #4caf50; text-shadow: 0 0 6px #4caf50; }
-            49%  { opacity: 1; color: #4caf50; }
-            50%  { opacity: 0; }
-            99%  { opacity: 0; }
-            100% { opacity: 1; color: #ffffff; text-shadow: none; }
+            0%,49% { opacity: 1; color: #4caf50; text-shadow: 0 0 6px #4caf50; }
+            50%,99%{ opacity: 0; }
+            100%   { opacity: 1; color: #ffffff; text-shadow: none; }
         }
 
 
-        .char { display: inline; white-space: pre-wrap; }
+        /* inline-block чтобы transform работал */
+        .char {
+            display: inline-block;
+            white-space: pre;          /* пробелы и \n не схлопываются */
+            vertical-align: baseline;
+        }
+        /* перенос строки — block чтобы занимал всю ширину */
+        .char-newline {
+            display: block;
+            height: 0;
+            white-space: pre;
+        }
+
+
         .anim-fade       { animation: anim-fade       0.25s ease forwards; }
-        .anim-slide-up   { animation: anim-slide-up   0.25s ease forwards; }
-        .anim-scale      { animation: anim-scale       0.2s  ease forwards; }
+        .anim-slide-up   { animation: anim-slide-up   0.28s ease forwards; }
+        .anim-scale      { animation: anim-scale       0.22s cubic-bezier(.34,1.56,.64,1) forwards; }
         .anim-glow       { animation: anim-glow        0.5s  ease forwards; }
         .anim-bounce     { animation: anim-bounce      0.35s ease forwards; }
-        .anim-typewriter { animation: anim-typewriter  0.4s  steps(1) forwards; }
+        .anim-typewriter { animation: anim-typewriter  0.45s steps(1) forwards; }
 
 
-        /* ── Выбор анимации ── */
+        /* ── Пикер анимации ── */
         #anim-picker {
             display: flex;
             gap: 6px;
@@ -108,7 +124,7 @@
             background-color: #2d2d2d;
             color: #aaa;
             border: 1px solid #444;
-            padding: 5px 10px;
+            padding: 5px 12px;
             border-radius: 20px;
             font-size: 12px;
             cursor: pointer;
@@ -116,12 +132,8 @@
             width: auto;
             margin: 0;
         }
-        .anim-btn:hover { border-color: #4caf50; color: #fff; }
-        .anim-btn.active {
-            background-color: #4caf50;
-            border-color: #4caf50;
-            color: #fff;
-        }
+        .anim-btn:hover  { border-color: #4caf50; color: #fff; }
+        .anim-btn.active { background-color: #4caf50; border-color: #4caf50; color: #fff; }
 
 
         button {
@@ -157,7 +169,6 @@
             font-size: 14px;
             color: #aaa;
             display: flex;
-            justify-content: space-between;
             align-items: center;
             padding-right: 30px;
             min-height: 24px;
@@ -198,8 +209,10 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue }
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 
     const firebaseConfig = {
@@ -219,14 +232,14 @@
     const provider = new GoogleAuthProvider();
 
 
-    const authScreen     = document.getElementById('auth-screen');
-    const appScreen      = document.getElementById('app-screen');
-    const btnLogin       = document.getElementById('btn-login');
-    const btnLogout      = document.getElementById('btn-logout');
-    const btnCopy        = document.getElementById('btn-copy');
-    const textInput      = document.getElementById('text-input');
-    const userEmailHtml  = document.getElementById('user-email');
-    const animPicker     = document.getElementById('anim-picker');
+    const authScreen    = document.getElementById('auth-screen');
+    const appScreen     = document.getElementById('app-screen');
+    const btnLogin      = document.getElementById('btn-login');
+    const btnLogout     = document.getElementById('btn-logout');
+    const btnCopy       = document.getElementById('btn-copy');
+    const textInput     = document.getElementById('text-input');
+    const userEmailHtml = document.getElementById('user-email');
+    const animPicker    = document.getElementById('anim-picker');
 
 
     let currentUser    = null;
@@ -235,6 +248,7 @@
     let lastText       = '';
     let isRemoteUpdate = false;
     let currentAnim    = 'anim-fade';
+    let isPaste        = false;   // флаг: текущее изменение — вставка
 
 
     // ── Выбор анимации ────────────────────────────────────────────────────────
@@ -267,7 +281,22 @@
     }
 
 
-    function applyAnimatedDiff(newText) {
+    // Создать span для одного символа с анимацией
+    function makeAnimSpan(ch) {
+        const s = document.createElement('span');
+        // Перенос строки — особый случай
+        if (ch === '\n') {
+            s.className = 'char-newline';
+            s.textContent = '\n';
+        } else {
+            s.className = `char ${currentAnim}`;
+            s.textContent = ch;
+        }
+        return s;
+    }
+
+
+    function applyDiff(newText, animate) {
         // Общий префикс
         let start = 0;
         while (start < lastText.length && start < newText.length && lastText[start] === newText[start]) {
@@ -284,8 +313,6 @@
 
         const inserted     = newText.slice(start, newEnd);
         const deletedCount = oldEnd - start;
-
-
         if (deletedCount === 0 && inserted.length === 0) return;
 
 
@@ -304,11 +331,19 @@
         }
 
 
-        for (const ch of inserted) {
-            const s = document.createElement('span');
-            s.className = `char ${currentAnim}`;
-            s.textContent = ch;
-            textInput.appendChild(s);
+        if (animate) {
+            // Каждый символ — отдельный анимированный span
+            for (const ch of inserted) {
+                textInput.appendChild(makeAnimSpan(ch));
+            }
+        } else {
+            // Вставка — один span без анимации
+            if (inserted) {
+                const s = document.createElement('span');
+                s.style.whiteSpace = 'pre-wrap';
+                s.textContent = inserted;
+                textInput.appendChild(s);
+            }
         }
 
 
@@ -321,11 +356,7 @@
 
 
         lastText = newText;
-
-
-        // Восстанавливаем курсор после перерисовки DOM
         const caretPos = start + inserted.length;
-        // setTimeout(0) — ждём пока браузер применит новый DOM
         setTimeout(() => restoreCaret(caretPos), 0);
     }
 
@@ -356,14 +387,10 @@
 
 
         walk(textInput);
-
-
         if (!found) {
             range.selectNodeContents(textInput);
             range.collapse(false);
         }
-
-
         sel.removeAllRanges();
         sel.addRange(range);
     }
@@ -419,7 +446,14 @@
         if (isRemoteUpdate) return;
         const newText = getPlainText();
         if (newText === lastText) return;
-        applyAnimatedDiff(newText);
+
+
+        // animate=false если это была вставка
+        const animate = !isPaste;
+        isPaste = false;
+
+
+        applyDiff(newText, animate);
         saveText(newText);
     });
 
@@ -430,15 +464,14 @@
         if (!text || !currentUser) return;
         const pos = getCaretPosition();
         const newText = lastText.slice(0, pos) + text + lastText.slice(pos);
-        applyAnimatedDiff(newText);
+        applyDiff(newText, false);   // вставка — без анимации
         saveText(newText);
     });
 
 
     // ── Кнопки ────────────────────────────────────────────────────────────────
     btnCopy.addEventListener('click', () => {
-        const text = getPlainText();
-        navigator.clipboard.writeText(text).then(() => {
+        navigator.clipboard.writeText(getPlainText()).then(() => {
             const orig = btnCopy.textContent;
             btnCopy.textContent = "Скопировано!";
             btnCopy.style.backgroundColor = "#4caf50";
