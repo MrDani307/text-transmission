@@ -63,6 +63,15 @@
             margin-bottom: 15px;
             font-size: 14px;
             color: #aaa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #status {
+            font-size: 12px;
+            color: #4caf50;
+            transition: opacity 0.3s;
+            opacity: 0;
         }
     </style>
 </head>
@@ -76,9 +85,11 @@
     </div>
 
     <div id="app-screen" class="hidden">
-        <div id="user-info">Вы вошли как: <span id="user-email"></span></div>
+        <div id="user-info">
+            <span>Вы вошли как: <span id="user-email"></span></span>
+            <span id="status">Сохранено</span>
+        </div>
         <textarea id="text-input" placeholder="Введите текст здесь..."></textarea>
-        <button id="btn-save">Сохранить в облако</button>
         <button class="logout" id="btn-logout">Выйти</button>
     </div>
 </div>
@@ -107,11 +118,12 @@
     const appScreen = document.getElementById('app-screen');
     const btnLogin = document.getElementById('btn-login');
     const btnLogout = document.getElementById('btn-logout');
-    const btnSave = document.getElementById('btn-save');
     const textInput = document.getElementById('text-input');
     const userEmailHtml = document.getElementById('user-email');
+    const statusHtml = document.getElementById('status');
 
     let currentUser = null;
+    let isTyping = false;
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -123,7 +135,7 @@
             const textRef = ref(db, 'users/' + user.uid + '/text');
             onValue(textRef, (snapshot) => {
                 const data = snapshot.val();
-                if (data !== null) {
+                if (data !== null && !isTyping) {
                     textInput.value = data;
                 }
             });
@@ -135,29 +147,41 @@
         }
     });
 
+    textInput.addEventListener('input', () => {
+        if (currentUser) {
+            isTyping = true;
+            statusHtml.style.opacity = "1";
+            statusHtml.textContent = "Сохранение...";
+            statusHtml.style.color = "#ff9800";
+
+            set(ref(db, 'users/' + currentUser.uid + '/text'), textInput.value)
+                .then(() => {
+                    statusHtml.textContent = "Сохранено";
+                    statusHtml.style.color = "#4caf50";
+                    isTyping = false;
+                    setTimeout(() => {
+                        if (!isTyping) statusHtml.style.opacity = "0";
+                    }, 1500);
+                })
+                .catch((error) => {
+                    statusHtml.textContent = "Ошибка";
+                    statusHtml.style.color = "#f44336";
+                    isTyping = false;
+                    console.error("Ошибка автосохранения:", error);
+                });
+        }
+    });
+
     btnLogin.addEventListener('click', () => {
-        signInWithPopup(auth, provider)
-            .then((result) => {
-                console.log("Успешный вход:", result.user);
-            })
-            .catch((error) => {
-                alert("Ошибка авторизации. Убедитесь, что в браузере разрешены всплывающие окна (Pop-ups). Код: " + error.message);
-                console.error("Ошибка авторизации:", error);
-            });
+        signInWithPopup(auth, provider).catch((error) => {
+            console.error("Ошибка авторизации:", error);
+        });
     });
 
     btnLogout.addEventListener('click', () => {
         signOut(auth).catch((error) => {
             console.error("Ошибка выхода:", error);
         });
-    });
-
-    btnSave.addEventListener('click', () => {
-        if (currentUser) {
-            set(ref(db, 'users/' + currentUser.uid + '/text'), textInput.value)
-                .then(() => alert('Сохранено!'))
-                .catch((error) => alert("Ошибка сохранения: " + error.message));
-        }
     });
 </script>
 
