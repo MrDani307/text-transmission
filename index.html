@@ -85,7 +85,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { initializeAuth, signInWithRedirect, getRedirectResult, browserPopupRedirectResolver, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
@@ -99,7 +99,13 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
+    
+    // Используем кастомную инициализацию авторизации для обхода блокировки Cookies
+    const auth = initializeAuth(app, {
+        popupRedirectResolver: browserPopupRedirectResolver,
+        authDomain: "mrdani307.github.io/text-transmission"
+    });
+
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
@@ -155,7 +161,7 @@
         if (currentUser) {
             set(ref(db, 'users/' + currentUser.uid + '/text'), textInput.value)
                 .then(() => alert('Сохранено!'))
-                .catch((error) => console.error("Ошибка保存ния:", error));
+                .catch((error) => console.error("Ошибка сохранения:", error));
         }
     });
 </script>
