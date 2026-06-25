@@ -37,7 +37,6 @@
             resize: none;
             margin-bottom: 15px;
             caret-color: #4caf50;
-            animation: textFade 0.1s ease;
         }
         button {
             background-color: #4caf50;
@@ -86,12 +85,6 @@
             padding-right: 30px;
             min-height: 24px;
         }
-        #status {
-            font-size: 12px;
-            color: #4caf50;
-            transition: opacity 0.3s;
-            opacity: 0;
-        }
     </style>
 </head>
 <body>
@@ -107,7 +100,6 @@
         <button class="logout-icon" id="btn-logout" title="Выйти">&#10143;</button>
         <div id="user-info">
             <span>Вы вошли как: <span id="user-email"></span></span>
-            <span id="status">Сохранено</span>
         </div>
         <textarea id="text-input" placeholder="Введите текст здесь..."></textarea>
         <button class="copy" id="btn-copy">Копировать всё</button>
@@ -141,10 +133,10 @@
     const btnCopy = document.getElementById('btn-copy');
     const textInput = document.getElementById('text-input');
     const userEmailHtml = document.getElementById('user-email');
-    const statusHtml = document.getElementById('status');
 
     let currentUser = null;
     let isTyping = false;
+    let typingTimeout = null;
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -171,25 +163,15 @@
     textInput.addEventListener('input', () => {
         if (currentUser) {
             isTyping = true;
-            statusHtml.style.opacity = "1";
-            statusHtml.textContent = "Сохранение...";
-            statusHtml.style.color = "#ff9800";
+            
+            clearTimeout(typingTimeout);
 
             set(ref(db, 'users/' + currentUser.uid + '/text'), textInput.value)
-                .then(() => {
-                    statusHtml.textContent = "Сохранено";
-                    statusHtml.style.color = "#4caf50";
-                    isTyping = false;
-                    setTimeout(() => {
-                        if (!isTyping) statusHtml.style.opacity = "0";
-                    }, 1500);
-                })
-                .catch((error) => {
-                    statusHtml.textContent = "Ошибка";
-                    statusHtml.style.color = "#f44336";
-                    isTyping = false;
-                    console.error("Ошибка автосохранения:", error);
-                });
+                .catch((error) => console.error("Ошибка сохранения:", error));
+
+            typingTimeout = setTimeout(() => {
+                isTyping = false;
+            }, 1000);
         }
     });
 
