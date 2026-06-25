@@ -12,7 +12,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
         }
         .container {
@@ -27,7 +27,7 @@
         }
         #text-input {
             width: 100%;
-            height: 150px;
+            min-height: 150px;
             background-color: #2d2d2d;
             color: #ffffff;
             border: 1px solid #444;
@@ -50,14 +50,14 @@
             color: #666;
             pointer-events: none;
         }
-        #text-input span.char {
-            display: inline;
-            white-space: pre-wrap;
-            animation: fadeInChar 0.3s ease forwards;
-        }
         @keyframes fadeInChar {
             from { opacity: 0; }
             to   { opacity: 1; }
+        }
+        .char {
+            display: inline;
+            white-space: pre-wrap;
+            animation: fadeInChar 0.3s ease forwards;
         }
         button {
             background-color: #4caf50;
@@ -70,8 +70,8 @@
             width: 100%;
             margin-bottom: 10px;
         }
-        button.login { background-color: #4285f4; }
-        button.copy  { background-color: #00bcd4; }
+        button.login  { background-color: #4285f4; }
+        button.copy   { background-color: #00bcd4; }
         button.logout-icon {
             background: none;
             border: none;
@@ -135,64 +135,158 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getDatabase(app);
+    const db   = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
-    const authScreen   = document.getElementById('auth-screen');
-    const appScreen    = document.getElementById('app-screen');
-    const btnLogin     = document.getElementById('btn-login');
-    const btnLogout    = document.getElementById('btn-logout');
-    const btnCopy      = document.getElementById('btn-copy');
-    const textInput    = document.getElementById('text-input');
+    const authScreen    = document.getElementById('auth-screen');
+    const appScreen     = document.getElementById('app-screen');
+    const btnLogin      = document.getElementById('btn-login');
+    const btnLogout     = document.getElementById('btn-logout');
+    const btnCopy       = document.getElementById('btn-copy');
+    const textInput     = document.getElementById('text-input');
     const userEmailHtml = document.getElementById('user-email');
 
-    let currentUser = null;
-    let isTyping = false;
+    let currentUser   = null;
+    let isTyping      = false;
     let typingTimeout = null;
-    let lastText = '';   // следим за предыдущим состоянием текста
+    let lastText      = '';      // последнее известное состояние текста
+    let isRemoteUpdate = false;  // флаг: обновление пришло из Firebase
 
-    // Получить чистый текст из contenteditable
+    // ── Утилиты ──────────────────────────────────────────────────────────────
+
+    // Чистый текст из contenteditable
     function getPlainText() {
-        return textInput.innerText.replace(/\u00a0/g, ' ');
+        // innerText корректно читает \n из <br> и блочных элементов
+        return textInput.innerText.replace(/\u00a0/g, ' ').replace(/\n$/, '');
     }
 
-    // Загрузить текст с Firebase без анимации (просто спан без класса)
+    // Загрузить текст без анимации (приход из Firebase или начальная загрузка)
     function loadTextSilently(text) {
+        isRemoteUpdate = true;
         textInput.innerHTML = '';
-        if (!text) return;
-        const span = document.createElement('span');
-        span.style.whiteSpace = 'pre-wrap';
-        span.textContent = text;
-        textInput.appendChild(span);
+        if (text) {
+            const span = document.createElement('span');
+            span.style.whiteSpace = 'pre-wrap';
+            span.textContent = text;
+            textInput.appendChild(span);
+        }
         lastText = text;
-        // Поставить курсор в конец
-        const range = document.createRange();
-        const sel = window.getSelection();
-        range.selectNodeContents(textInput);
-        range.collapse(false);
-        sel.removeAllRanges();
-        sel.addRange(range);
+        isRemoteUpdate = false;
     }
 
-    // Вставить один символ с анимацией в позицию курсора
-    function insertAnimatedChar(char) {
+    // Найти позицию курсора в чистом тексте
+    function getCaretPosition() {
         const sel = window.getSelection();
-        if (!sel.rangeCount) return;
-
+        if (!sel || !sel.rangeCount) return lastText.length;
         const range = sel.getRangeAt(0);
-        range.deleteContents();
+        const preRange = range.cloneRange();
+        preRange.selectNodeContents(textInput);
+        preRange.setEnd(range.endContainer, range.endOffset);
+        return preRange.toString().length;
+    }
 
-        const span = document.createElement('span');
-        span.className = 'char';
-        span.textContent = char;
-        range.insertNode(span);
+    // Вставить символы с анимацией начиная с позиции pos в lastText
+    // newText — полный новый текст, pos — с какой позиции начались изменения
+    function applyAnimatedDiff(newText) {
+        // Находим общий префикс
+        let start = 0;
+        while (start < lastText.length && start < newText.length && lastText[start] === newText[start]) {
+            start++;
+        }
+        // Находим общий суффикс
+        let oldEnd = lastText.length;
+        let newEnd = newText.length;
+        while (oldEnd > start && newEnd > start && lastText[oldEnd - 1] === newText[newEnd - 1]) {
+            oldEnd--;
+            newEnd--;
+        }
 
-        // Сдвинуть курсор после вставленного символа
-        range.setStartAfter(span);
-        range.collapse(true);
+        const inserted = newText.slice(start, newEnd);   // новые символы
+        const deletedCount = oldEnd - start;             // сколько удалено
+
+        if (deletedCount === 0 && inserted.length === 0) return; // ничего не изменилось
+
+        // Пересобираем DOM
+        // Текущий DOM-текст разбиваем на: prefix | deleted | suffix
+        const currentFull = lastText;
+        const prefix  = currentFull.slice(0, start);
+        const suffix  = currentFull.slice(oldEnd);
+
+        textInput.innerHTML = '';
+
+        // Префикс — без анимации
+        if (prefix) {
+            const s = document.createElement('span');
+            s.style.whiteSpace = 'pre-wrap';
+            s.textContent = prefix;
+            textInput.appendChild(s);
+        }
+
+        // Вставленные символы — каждый со своей анимацией
+        for (const ch of inserted) {
+            const s = document.createElement('span');
+            s.className = 'char';
+            s.textContent = ch;
+            textInput.appendChild(s);
+        }
+
+        // Суффикс — без анимации
+        if (suffix) {
+            const s = document.createElement('span');
+            s.style.whiteSpace = 'pre-wrap';
+            s.textContent = suffix;
+            textInput.appendChild(s);
+        }
+
+        // Восстанавливаем курсор после вставки
+        const caretPos = start + inserted.length;
+        restoreCaret(caretPos);
+
+        lastText = newText;
+    }
+
+    // Поставить курсор на нужную позицию в тексте
+    function restoreCaret(pos) {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        let chars = 0;
+        let found = false;
+
+        function walk(node) {
+            if (found) return;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const len = node.textContent.length;
+                if (chars + len >= pos) {
+                    range.setStart(node, pos - chars);
+                    range.collapse(true);
+                    found = true;
+                } else {
+                    chars += len;
+                }
+            } else {
+                for (const child of node.childNodes) walk(child);
+            }
+        }
+
+        walk(textInput);
+        if (!found) {
+            range.selectNodeContents(textInput);
+            range.collapse(false);
+        }
         sel.removeAllRanges();
         sel.addRange(range);
     }
+
+    function saveText(text) {
+        if (!currentUser) return;
+        isTyping = true;
+        set(ref(db, 'users/' + currentUser.uid + '/text'), text)
+            .catch(e => console.error("Ошибка сохранения:", e));
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
+    }
+
+    // ── Auth ─────────────────────────────────────────────────────────────────
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -217,76 +311,32 @@
         }
     });
 
-    // Перехватываем нажатия клавиш — только для печатаемых символов
-    textInput.addEventListener('keydown', (e) => {
-        if (!currentUser) return;
+    // ── Ввод ─────────────────────────────────────────────────────────────────
 
-        // Пропускаем управляющие клавиши (стрелки, Ctrl, и т.д.)
-        if (e.ctrlKey || e.metaKey || e.altKey) return;
-        if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',
-             'Home','End','PageUp','PageDown',
-             'Shift','Control','Alt','Meta','CapsLock',
-             'Tab','Escape','F1','F2','F3','F4','F5',
-             'F6','F7','F8','F9','F10','F11','F12'].includes(e.key)) return;
+    // Событие input — работает на всех устройствах включая мобильные
+    textInput.addEventListener('input', (e) => {
+        if (isRemoteUpdate) return;
 
-        // Backspace и Delete — позволяем браузеру обработать, потом сохраняем
-        if (e.key === 'Backspace' || e.key === 'Delete') {
-            isTyping = true;
-            clearTimeout(typingTimeout);
-            setTimeout(() => {
-                saveText();
-                typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
-            }, 0);
-            return;
-        }
+        const newText = getPlainText();
+        if (newText === lastText) return;
 
-        // Enter — вставляем перенос строки с анимацией
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            insertAnimatedChar('\n');
-            saveText();
-            return;
-        }
-
-        // Обычный символ — перехватываем и анимируем
-        if (e.key.length === 1) {
-            e.preventDefault();
-            insertAnimatedChar(e.key);
-            saveText();
-        }
+        applyAnimatedDiff(newText);
+        saveText(newText);
     });
 
-    // Обработка вставки (Ctrl+V / долгое нажатие → Вставить)
+    // Вставка через буфер обмена
     textInput.addEventListener('paste', (e) => {
         e.preventDefault();
         const text = e.clipboardData.getData('text/plain');
-        if (!text) return;
+        if (!text || !currentUser) return;
 
-        // Вставляем как обычный текст без анимации (большой блок)
-        const sel = window.getSelection();
-        if (!sel.rangeCount) return;
-        const range = sel.getRangeAt(0);
-        range.deleteContents();
-        const span = document.createElement('span');
-        span.style.whiteSpace = 'pre-wrap';
-        span.textContent = text;
-        range.insertNode(span);
-        range.setStartAfter(span);
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-
-        saveText();
+        const caretPos = getCaretPosition();
+        const newText = lastText.slice(0, caretPos) + text + lastText.slice(caretPos);
+        applyAnimatedDiff(newText);
+        saveText(newText);
     });
 
-    function saveText() {
-        isTyping = true;
-        const text = getPlainText();
-        set(ref(db, 'users/' + currentUser.uid + '/text'), text)
-            .catch((error) => console.error("Ошибка сохранения:", error));
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
-    }
+    // ── Кнопки ───────────────────────────────────────────────────────────────
 
     btnCopy.addEventListener('click', () => {
         const text = getPlainText();
@@ -300,17 +350,17 @@
                     btnCopy.style.backgroundColor = "#00bcd4";
                 }, 1500);
             })
-            .catch((error) => console.error("Ошибка копирования:", error));
+            .catch(e => console.error("Ошибка копирования:", e));
     });
 
     btnLogin.addEventListener('click', () => {
         signInWithPopup(auth, provider)
-            .catch((error) => console.error("Ошибка авторизации:", error));
+            .catch(e => console.error("Ошибка авторизации:", e));
     });
 
     btnLogout.addEventListener('click', () => {
         signOut(auth)
-            .catch((error) => console.error("Ошибка выхода:", error));
+            .catch(e => console.error("Ошибка выхода:", e));
     });
 </script>
 
