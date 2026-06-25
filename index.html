@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Облачный Блокнот</title>
     <style>
+        * { box-sizing: border-box; }
         body {
             font-family: Arial, sans-serif;
             background-color: #121212;
@@ -14,13 +15,14 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
+            padding: 20px;
         }
         .container {
             background-color: #1e1e1e;
             padding: 20px;
             border-radius: 8px;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-            width: 90%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            width: 100%;
             max-width: 500px;
             text-align: center;
             position: relative;
@@ -33,14 +35,14 @@
             border: 1px solid #444;
             border-radius: 4px;
             padding: 10px;
-            box-sizing: border-box;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             outline: none;
             text-align: left;
             overflow-y: auto;
+            overflow-x: hidden;
             white-space: pre-wrap;
             word-break: break-word;
-            line-height: 1.5;
+            line-height: 1.6;
             caret-color: #4caf50;
             font-size: 14px;
             font-family: Arial, sans-serif;
@@ -50,15 +52,78 @@
             color: #666;
             pointer-events: none;
         }
-        @keyframes fadeInChar {
+
+
+        /* ── Анимации символов ── */
+        @keyframes anim-fade {
             from { opacity: 0; }
             to   { opacity: 1; }
         }
-        .char {
-            display: inline;
-            white-space: pre-wrap;
-            animation: fadeInChar 0.3s ease forwards;
+        @keyframes anim-slide-up {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
+        @keyframes anim-scale {
+            from { opacity: 0; transform: scale(0); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes anim-glow {
+            0%   { opacity: 0; text-shadow: 0 0 8px #4caf50, 0 0 20px #4caf50; color: #a5ffac; }
+            60%  { opacity: 1; text-shadow: 0 0 6px #4caf50; color: #d0ffd3; }
+            100% { opacity: 1; text-shadow: none; color: #ffffff; }
+        }
+        @keyframes anim-bounce {
+            0%   { opacity: 0; transform: translateY(-12px); }
+            60%  { opacity: 1; transform: translateY(3px); }
+            80%  { transform: translateY(-2px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes anim-typewriter {
+            0%   { opacity: 1; color: #4caf50; text-shadow: 0 0 6px #4caf50; }
+            49%  { opacity: 1; color: #4caf50; }
+            50%  { opacity: 0; }
+            99%  { opacity: 0; }
+            100% { opacity: 1; color: #ffffff; text-shadow: none; }
+        }
+
+
+        .char { display: inline; white-space: pre-wrap; }
+        .anim-fade       { animation: anim-fade       0.25s ease forwards; }
+        .anim-slide-up   { animation: anim-slide-up   0.25s ease forwards; }
+        .anim-scale      { animation: anim-scale       0.2s  ease forwards; }
+        .anim-glow       { animation: anim-glow        0.5s  ease forwards; }
+        .anim-bounce     { animation: anim-bounce      0.35s ease forwards; }
+        .anim-typewriter { animation: anim-typewriter  0.4s  steps(1) forwards; }
+
+
+        /* ── Выбор анимации ── */
+        #anim-picker {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+        .anim-btn {
+            background-color: #2d2d2d;
+            color: #aaa;
+            border: 1px solid #444;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: auto;
+            margin: 0;
+        }
+        .anim-btn:hover { border-color: #4caf50; color: #fff; }
+        .anim-btn.active {
+            background-color: #4caf50;
+            border-color: #4caf50;
+            color: #fff;
+        }
+
+
         button {
             background-color: #4caf50;
             color: white;
@@ -100,7 +165,6 @@
     </style>
 </head>
 <body>
-
 <div class="container">
     <div id="auth-screen">
         <h2>Авторизация</h2>
@@ -108,20 +172,35 @@
         <button class="login" id="btn-login">Войти через Google</button>
     </div>
 
+
     <div id="app-screen" class="hidden">
         <button class="logout-icon" id="btn-logout" title="Выйти">&#10143;</button>
         <div id="user-info">
             <span>Вы вошли как: <span id="user-email"></span></span>
         </div>
+
+
+        <div id="anim-picker">
+            <button class="anim-btn active" data-anim="anim-fade">Fade</button>
+            <button class="anim-btn" data-anim="anim-slide-up">Slide Up</button>
+            <button class="anim-btn" data-anim="anim-scale">Scale</button>
+            <button class="anim-btn" data-anim="anim-glow">Glow</button>
+            <button class="anim-btn" data-anim="anim-bounce">Bounce</button>
+            <button class="anim-btn" data-anim="anim-typewriter">Typewriter</button>
+        </div>
+
+
         <div id="text-input" contenteditable="true" spellcheck="false"></div>
         <button class="copy" id="btn-copy">Копировать всё</button>
     </div>
 </div>
 
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
 
     const firebaseConfig = {
         apiKey: "AIzaSyC6JayNN_rZcn8o9scI5gBEVKO6xXhQLV4",
@@ -133,67 +212,68 @@
         appId: "1:749005357603:web:a3d567ce1b91350336a796"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db   = getDatabase(app);
+
+    const app      = initializeApp(firebaseConfig);
+    const auth     = getAuth(app);
+    const db       = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
-    const authScreen    = document.getElementById('auth-screen');
-    const appScreen     = document.getElementById('app-screen');
-    const btnLogin      = document.getElementById('btn-login');
-    const btnLogout     = document.getElementById('btn-logout');
-    const btnCopy       = document.getElementById('btn-copy');
-    const textInput     = document.getElementById('text-input');
-    const userEmailHtml = document.getElementById('user-email');
 
-    let currentUser   = null;
-    let isTyping      = false;
-    let typingTimeout = null;
-    let lastText      = '';      // последнее известное состояние текста
-    let isRemoteUpdate = false;  // флаг: обновление пришло из Firebase
+    const authScreen     = document.getElementById('auth-screen');
+    const appScreen      = document.getElementById('app-screen');
+    const btnLogin       = document.getElementById('btn-login');
+    const btnLogout      = document.getElementById('btn-logout');
+    const btnCopy        = document.getElementById('btn-copy');
+    const textInput      = document.getElementById('text-input');
+    const userEmailHtml  = document.getElementById('user-email');
+    const animPicker     = document.getElementById('anim-picker');
 
-    // ── Утилиты ──────────────────────────────────────────────────────────────
 
-    // Чистый текст из contenteditable
+    let currentUser    = null;
+    let isTyping       = false;
+    let typingTimeout  = null;
+    let lastText       = '';
+    let isRemoteUpdate = false;
+    let currentAnim    = 'anim-fade';
+
+
+    // ── Выбор анимации ────────────────────────────────────────────────────────
+    animPicker.addEventListener('click', (e) => {
+        const btn = e.target.closest('.anim-btn');
+        if (!btn) return;
+        document.querySelectorAll('.anim-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentAnim = btn.dataset.anim;
+    });
+
+
+    // ── Утилиты ───────────────────────────────────────────────────────────────
     function getPlainText() {
-        // innerText корректно читает \n из <br> и блочных элементов
         return textInput.innerText.replace(/\u00a0/g, ' ').replace(/\n$/, '');
     }
 
-    // Загрузить текст без анимации (приход из Firebase или начальная загрузка)
+
     function loadTextSilently(text) {
         isRemoteUpdate = true;
         textInput.innerHTML = '';
         if (text) {
-            const span = document.createElement('span');
-            span.style.whiteSpace = 'pre-wrap';
-            span.textContent = text;
-            textInput.appendChild(span);
+            const s = document.createElement('span');
+            s.style.whiteSpace = 'pre-wrap';
+            s.textContent = text;
+            textInput.appendChild(s);
         }
         lastText = text;
         isRemoteUpdate = false;
     }
 
-    // Найти позицию курсора в чистом тексте
-    function getCaretPosition() {
-        const sel = window.getSelection();
-        if (!sel || !sel.rangeCount) return lastText.length;
-        const range = sel.getRangeAt(0);
-        const preRange = range.cloneRange();
-        preRange.selectNodeContents(textInput);
-        preRange.setEnd(range.endContainer, range.endOffset);
-        return preRange.toString().length;
-    }
 
-    // Вставить символы с анимацией начиная с позиции pos в lastText
-    // newText — полный новый текст, pos — с какой позиции начались изменения
     function applyAnimatedDiff(newText) {
-        // Находим общий префикс
+        // Общий префикс
         let start = 0;
         while (start < lastText.length && start < newText.length && lastText[start] === newText[start]) {
             start++;
         }
-        // Находим общий суффикс
+        // Общий суффикс
         let oldEnd = lastText.length;
         let newEnd = newText.length;
         while (oldEnd > start && newEnd > start && lastText[oldEnd - 1] === newText[newEnd - 1]) {
@@ -201,20 +281,21 @@
             newEnd--;
         }
 
-        const inserted = newText.slice(start, newEnd);   // новые символы
-        const deletedCount = oldEnd - start;             // сколько удалено
 
-        if (deletedCount === 0 && inserted.length === 0) return; // ничего не изменилось
+        const inserted     = newText.slice(start, newEnd);
+        const deletedCount = oldEnd - start;
 
-        // Пересобираем DOM
-        // Текущий DOM-текст разбиваем на: prefix | deleted | suffix
-        const currentFull = lastText;
-        const prefix  = currentFull.slice(0, start);
-        const suffix  = currentFull.slice(oldEnd);
+
+        if (deletedCount === 0 && inserted.length === 0) return;
+
+
+        const prefix = newText.slice(0, start);
+        const suffix = newText.slice(newEnd);
+
 
         textInput.innerHTML = '';
 
-        // Префикс — без анимации
+
         if (prefix) {
             const s = document.createElement('span');
             s.style.whiteSpace = 'pre-wrap';
@@ -222,15 +303,15 @@
             textInput.appendChild(s);
         }
 
-        // Вставленные символы — каждый со своей анимацией
+
         for (const ch of inserted) {
             const s = document.createElement('span');
-            s.className = 'char';
+            s.className = `char ${currentAnim}`;
             s.textContent = ch;
             textInput.appendChild(s);
         }
 
-        // Суффикс — без анимации
+
         if (suffix) {
             const s = document.createElement('span');
             s.style.whiteSpace = 'pre-wrap';
@@ -238,19 +319,24 @@
             textInput.appendChild(s);
         }
 
-        // Восстанавливаем курсор после вставки
-        const caretPos = start + inserted.length;
-        restoreCaret(caretPos);
 
         lastText = newText;
+
+
+        // Восстанавливаем курсор после перерисовки DOM
+        const caretPos = start + inserted.length;
+        // setTimeout(0) — ждём пока браузер применит новый DOM
+        setTimeout(() => restoreCaret(caretPos), 0);
     }
 
-    // Поставить курсор на нужную позицию в тексте
+
     function restoreCaret(pos) {
         const sel = window.getSelection();
+        if (!sel) return;
         const range = document.createRange();
         let chars = 0;
         let found = false;
+
 
         function walk(node) {
             if (found) return;
@@ -268,14 +354,31 @@
             }
         }
 
+
         walk(textInput);
+
+
         if (!found) {
             range.selectNodeContents(textInput);
             range.collapse(false);
         }
+
+
         sel.removeAllRanges();
         sel.addRange(range);
     }
+
+
+    function getCaretPosition() {
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return lastText.length;
+        const range = sel.getRangeAt(0);
+        const pre = range.cloneRange();
+        pre.selectNodeContents(textInput);
+        pre.setEnd(range.endContainer, range.endOffset);
+        return pre.toString().length;
+    }
+
 
     function saveText(text) {
         if (!currentUser) return;
@@ -286,8 +389,8 @@
         typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
     }
 
-    // ── Auth ─────────────────────────────────────────────────────────────────
 
+    // ── Auth ──────────────────────────────────────────────────────────────────
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUser = user;
@@ -295,12 +398,11 @@
             authScreen.classList.add('hidden');
             appScreen.classList.remove('hidden');
 
+
             const textRef = ref(db, 'users/' + user.uid + '/text');
             onValue(textRef, (snapshot) => {
                 const data = snapshot.val() ?? '';
-                if (!isTyping) {
-                    loadTextSilently(data);
-                }
+                if (!isTyping) loadTextSilently(data);
             });
         } else {
             currentUser = null;
@@ -311,58 +413,53 @@
         }
     });
 
-    // ── Ввод ─────────────────────────────────────────────────────────────────
 
-    // Событие input — работает на всех устройствах включая мобильные
-    textInput.addEventListener('input', (e) => {
+    // ── Ввод ──────────────────────────────────────────────────────────────────
+    textInput.addEventListener('input', () => {
         if (isRemoteUpdate) return;
-
         const newText = getPlainText();
         if (newText === lastText) return;
-
         applyAnimatedDiff(newText);
         saveText(newText);
     });
 
-    // Вставка через буфер обмена
+
     textInput.addEventListener('paste', (e) => {
         e.preventDefault();
         const text = e.clipboardData.getData('text/plain');
         if (!text || !currentUser) return;
-
-        const caretPos = getCaretPosition();
-        const newText = lastText.slice(0, caretPos) + text + lastText.slice(caretPos);
+        const pos = getCaretPosition();
+        const newText = lastText.slice(0, pos) + text + lastText.slice(pos);
         applyAnimatedDiff(newText);
         saveText(newText);
     });
 
-    // ── Кнопки ───────────────────────────────────────────────────────────────
 
+    // ── Кнопки ────────────────────────────────────────────────────────────────
     btnCopy.addEventListener('click', () => {
         const text = getPlainText();
-        navigator.clipboard.writeText(text)
-            .then(() => {
-                const orig = btnCopy.textContent;
-                btnCopy.textContent = "Скопировано!";
-                btnCopy.style.backgroundColor = "#4caf50";
-                setTimeout(() => {
-                    btnCopy.textContent = orig;
-                    btnCopy.style.backgroundColor = "#00bcd4";
-                }, 1500);
-            })
-            .catch(e => console.error("Ошибка копирования:", e));
+        navigator.clipboard.writeText(text).then(() => {
+            const orig = btnCopy.textContent;
+            btnCopy.textContent = "Скопировано!";
+            btnCopy.style.backgroundColor = "#4caf50";
+            setTimeout(() => {
+                btnCopy.textContent = orig;
+                btnCopy.style.backgroundColor = "#00bcd4";
+            }, 1500);
+        }).catch(e => console.error("Ошибка копирования:", e));
     });
+
 
     btnLogin.addEventListener('click', () => {
         signInWithPopup(auth, provider)
             .catch(e => console.error("Ошибка авторизации:", e));
     });
 
+
     btnLogout.addEventListener('click', () => {
         signOut(auth)
             .catch(e => console.error("Ошибка выхода:", e));
     });
 </script>
-
 </body>
 </html>
