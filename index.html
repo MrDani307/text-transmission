@@ -85,7 +85,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { initializeAuth, signInWithRedirect, getRedirectResult, browserPopupRedirectResolver, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
@@ -99,13 +99,7 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    
-    // Используем кастомную инициализацию авторизации для обхода блокировки Cookies
-    const auth = initializeAuth(app, {
-        popupRedirectResolver: browserPopupRedirectResolver,
-        authDomain: "mrdani307.github.io/text-transmission"
-    });
-
+    const auth = getAuth(app);
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
 
@@ -118,10 +112,6 @@
     const userEmailHtml = document.getElementById('user-email');
 
     let currentUser = null;
-
-    getRedirectResult(auth).catch((error) => {
-        console.error("Ошибка при возврате из Google:", error);
-    });
 
     onAuthStateChanged(auth, (user) => {
         if (user) {
@@ -146,9 +136,14 @@
     });
 
     btnLogin.addEventListener('click', () => {
-        signInWithRedirect(auth, provider).catch((error) => {
-            console.error("Ошибка авторизации:", error);
-        });
+        signInWithPopup(auth, provider)
+            .then((result) => {
+                console.log("Успешный вход:", result.user);
+            })
+            .catch((error) => {
+                alert("Ошибка авторизации. Убедитесь, что в браузере разрешены всплывающие окна (Pop-ups). Код: " + error.message);
+                console.error("Ошибка авторизации:", error);
+            });
     });
 
     btnLogout.addEventListener('click', () => {
@@ -161,7 +156,7 @@
         if (currentUser) {
             set(ref(db, 'users/' + currentUser.uid + '/text'), textInput.value)
                 .then(() => alert('Сохранено!'))
-                .catch((error) => console.error("Ошибка сохранения:", error));
+                .catch((error) => alert("Ошибка сохранения: " + error.message));
         }
     });
 </script>
