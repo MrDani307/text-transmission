@@ -36,6 +36,10 @@
             box-sizing: border-box;
             resize: none;
             margin-bottom: 15px;
+            transition: color 0.5s ease, opacity 0.5s ease;
+        }
+        textarea.updating {
+            opacity: 0.5;
         }
         button {
             background-color: #4caf50;
@@ -155,7 +159,13 @@
             onValue(textRef, (snapshot) => {
                 const data = snapshot.val();
                 if (data !== null && !isTyping) {
-                    textInput.value = data;
+                    if (textInput.value !== data) {
+                        textInput.classList.add('updating');
+                        setTimeout(() => {
+                            textInput.value = data;
+                            textInput.classList.remove('updating');
+                        }, 1500);
+                    }
                 }
             });
         } else {
