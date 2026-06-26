@@ -168,7 +168,6 @@
             font-family: 'Segoe UI', Arial, sans-serif;
             line-height: 1.65;
             color: rgba(255,255,255,0.92);
-            /* Ключевое: white-space:pre отображает \n как переносы */
             white-space: pre-wrap;
             word-break: break-word;
             text-align: left;
@@ -185,6 +184,22 @@
             content: "Введите текст здесь...";
             color: rgba(255,255,255,0.2);
             pointer-events: none;
+        }
+
+        /* ── КУРСОР ── */
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #a855f7;
+            vertical-align: text-bottom;
+            margin-left: -1px;
+            animation: blink-cursor 1s step-end infinite;
+            box-shadow: 0 0 4px #a855f7, 0 0 8px #a855f7;
+        }
+        @keyframes blink-cursor {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0; }
         }
 
         /* ── Анимации ── */
@@ -395,6 +410,8 @@
     let currentAnim    = 'none';
     let lastValue      = '';
     let syncTimeout    = null;
+    let cursorPos      = 0;     // позиция курсора
+    let cursorVisible  = true;  // видим ли курсор
 
     // ── Выбор анимации ────────────────────────────────────────────────────────
     animPicker.addEventListener('click', (e) => {
@@ -418,52 +435,136 @@
         }
     }
 
-    // ── Рендер display-layer ──────────────────────────────────────────────────
-    // Единственная функция которая пишет в display-layer.
-    // animStart/animEnd — диапазон символов для анимации (в newText).
-    // Если animStart === animEnd — анимации нет (просто перерисовка).
+    // ── Получить позицию курсора из textarea ────────────────────────────────
+    function getCursorPos() {
+        return realInput.selectionStart;
+    }
+
+    // ── Рендер display-layer с курсором ───────────────────────────────────────
     function renderDisplay(newText, animStart, animEnd) {
-        // Обновляем плейсхолдер
+        cursorPos = getCursorPos();
+
         if (newText === '') {
             displayLayer.classList.add('empty');
         } else {
             displayLayer.classList.remove('empty');
         }
 
-        // Если нет анимации или режим "none" — один текстовый узел, быстро
+        // Если нет анимации или режим "none" — просто текст + курсор
         if (animStart === animEnd || currentAnim === 'none') {
-            displayLayer.textContent = newText;
+            buildWithCursor(newText, cursorPos, null, null);
             return;
         }
 
-        // Есть анимируемый диапазон — строим из трёх частей
-        displayLayer.innerHTML = '';
-
+        // Есть анимируемый диапазон
         const before = newText.slice(0, animStart);
         const middle = newText.slice(animStart, animEnd);
         const after  = newText.slice(animEnd);
 
+        displayLayer.innerHTML = '';
+
+        // before
         if (before) {
             displayLayer.appendChild(document.createTextNode(before));
         }
 
-        // Каждый символ вставленного диапазона — span с анимацией
-        // Но только если диапазон небольшой (защита от зависания)
+        // Курсор внутри before?
+        if (cursorPos <= before.length && cursorPos >= 0) {
+            insertCursorAt(displayLayer, cursorPos, before);
+        }
+
+        // middle (анимированные символы)
         if (middle.length <= 20) {
-            for (const ch of middle) {
+            for (let i = 0; i < middle.length; i++) {
+                const ch = middle[i];
                 const s = document.createElement('span');
                 s.className = `char ${currentAnim}`;
                 s.textContent = ch;
                 displayLayer.appendChild(s);
+
+                // Курсор посередине middle?
+                if (cursorPos === before.length + i + 1) {
+                    const cursor = document.createElement('span');
+                    cursor.className = 'cursor';
+                    displayLayer.appendChild(cursor);
+                }
             }
         } else {
-            // Слишком много — без анимации
             displayLayer.appendChild(document.createTextNode(middle));
         }
 
+        // after
         if (after) {
             displayLayer.appendChild(document.createTextNode(after));
         }
+
+        // Курсор в конце
+        if (cursorPos === newText.length) {
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            displayLayer.appendChild(cursor);
+        }
+
+        // Курсор внутри after (если не попал выше)
+        if (cursorPos > animEnd && after) {
+            // Пересобираем — проще через buildWithCursor
+            buildWithCursor(newText, cursorPos, animStart, animEnd);
+        }
+    }
+
+    // Вспомогательная: собрать текст с курсором на правильной позиции
+    function buildWithCursor(text, pos, animStart, animEnd) {
+        displayLayer.innerHTML = '';
+        if (!text) {
+            if (cursorVisible && document.activeElement === realInput) {
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                displayLayer.appendChild(cursor);
+            }
+            return;
+        }
+
+        for (let i = 0; i < text.length; i++) {
+            // Анимированный символ?
+            if (animStart !== null && i >= animStart && i < animEnd && (animEnd - animStart) <= 20) {
+                const s = document.createElement('span');
+                s.className = `char ${currentAnim}`;
+                s.textContent = text[i];
+                displayLayer.appendChild(s);
+            } else {
+                displayLayer.appendChild(document.createTextNode(text[i]));
+            }
+
+            // Курсор после этого символа
+            if (pos === i + 1) {
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                displayLayer.appendChild(cursor);
+            }
+        }
+
+        // Курсор в начале (pos === 0)
+        if (pos === 0 && cursorVisible && document.activeElement === realInput) {
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            displayLayer.insertBefore(cursor, displayLayer.firstChild);
+        }
+
+        // Курсор в самом конце
+        if (pos === text.length && cursorVisible && document.activeElement === realInput) {
+            // Уже вставлен в цикле? Нет, если pos === text.length, цикл не вставит
+            // Проверим, есть ли уже курсор
+            const existing = displayLayer.querySelector('.cursor');
+            if (!existing) {
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                displayLayer.appendChild(cursor);
+            }
+        }
+    }
+
+    function insertCursorAt(container, pos, textBefore) {
+        // Не используется — оставлен для совместимости
     }
 
     // ── Тихая загрузка из Firebase ────────────────────────────────────────────
@@ -471,7 +572,7 @@
         isRemoteUpdate = true;
         realInput.value = text;
         lastValue = text;
-        // Текстовый узел — без всяких span, без анимации
+        cursorPos = text.length;
         displayLayer.textContent = text;
         if (text === '') {
             displayLayer.classList.add('empty');
@@ -518,7 +619,6 @@
         const insertedLen  = newEnd - start;
         const deletedCount = oldEnd - start;
 
-        // Если удаление или большая вставка — без анимации
         const shouldAnimate = deletedCount === 0 && insertedLen > 0 && insertedLen <= 20;
 
         renderDisplay(newValue, start, shouldAnimate ? start + insertedLen : start);
@@ -534,9 +634,30 @@
         displayLayer.scrollTop = realInput.scrollTop;
     });
 
-    // Фокус
-    realInput.addEventListener('focus', () => displayLayer.classList.add('focused'));
-    realInput.addEventListener('blur',  () => displayLayer.classList.remove('focused'));
+    // Фокус / blur — обновляем курсор
+    realInput.addEventListener('focus', () => {
+        displayLayer.classList.add('focused');
+        cursorVisible = true;
+        renderDisplay(lastValue, 0, 0);
+    });
+    realInput.addEventListener('blur', () => {
+        displayLayer.classList.remove('focused');
+        cursorVisible = false;
+        // Убрать курсор
+        const cursors = displayLayer.querySelectorAll('.cursor');
+        cursors.forEach(c => c.remove());
+    });
+
+    // Клавиши которые двигают курсор — обновляем отображение
+    ['keydown', 'keyup', 'click', 'select'].forEach(evt => {
+        realInput.addEventListener(evt, () => {
+            if (!isRemoteUpdate) {
+                requestAnimationFrame(() => {
+                    renderDisplay(lastValue, 0, 0);
+                });
+            }
+        });
+    });
 
     // ── Auth ──────────────────────────────────────────────────────────────────
     onAuthStateChanged(auth, (user) => {
