@@ -136,12 +136,14 @@
             margin-bottom: 10px;
         }
 
-        /* Реальный textarea — невидимый, сверху */
+        /* Реальный textarea — полностью прозрачный, но перехватывает события */
         #real-input {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0; resize: none; border: none; outline: none;
-            background: transparent; color: transparent;
+            opacity: 0.001; /* почти невидим, но работает выделение */
+            resize: none; border: none; outline: none;
+            background: transparent;
+            color: transparent;
             caret-color: transparent;
             font-size: 14px;
             font-family: 'Segoe UI', Arial, sans-serif;
@@ -174,6 +176,9 @@
             transition: border-color 0.2s, box-shadow 0.2s;
             cursor: text;
             position: relative; z-index: 1;
+            /* Запрещаем выделение в визуальном слое — оно работает в textarea */
+            user-select: none;
+            -webkit-user-select: none;
         }
         #display-layer.focused {
             border-color: rgba(168,85,247,0.5);
@@ -200,6 +205,13 @@
         @keyframes blink-cursor {
             0%, 100% { opacity: 1; }
             50%      { opacity: 0; }
+        }
+
+        /* ── ВЫДЕЛЕНИЕ ТЕКСТА В ВИЗУАЛЬНОМ СЛОЕ ── */
+        .sel {
+            background: rgba(168, 85, 247, 0.45);
+            border-radius: 2px;
+            box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.3);
         }
 
         /* ── Анимации ── */
@@ -410,8 +422,11 @@
     let currentAnim    = 'none';
     let lastValue      = '';
     let syncTimeout    = null;
-    let cursorPos      = 0;     // позиция курсора
-    let cursorVisible  = true;  // видим ли курсор
+    let cursorPos      = 0;
+    let selStart       = 0;
+    let selEnd         = 0;
+    let pendingAnimStart = -1;
+    let pendingAnimEnd   = -1;
 
     // ── Выбор анимации ────────────────────────────────────────────────────────
     animPicker.addEventListener('click', (e) => {
@@ -435,88 +450,38 @@
         }
     }
 
-    // ── Получить позицию курсора из textarea ────────────────────────────────
-    function getCursorPos() {
-        return realInput.selectionStart;
+    // ── Получить позицию и выделение ──────────────────────────────────────────
+    function getSelectionState() {
+        return {
+            cursor: realInput.selectionStart,
+            selStart: realInput.selectionStart,
+            selEnd: realInput.selectionEnd
+        };
     }
 
-    // ── Рендер display-layer с курсором ───────────────────────────────────────
+    // ── Рендер display-layer ──────────────────────────────────────────────────
+    // animStart/animEnd — диапазон для анимации (в newText). -1 = нет анимации.
     function renderDisplay(newText, animStart, animEnd) {
-        cursorPos = getCursorPos();
+        const sel = getSelectionState();
+        cursorPos = sel.cursor;
+        selStart = sel.selStart;
+        selEnd = sel.selEnd;
 
+        // Обновляем плейсхолдер
         if (newText === '') {
             displayLayer.classList.add('empty');
         } else {
             displayLayer.classList.remove('empty');
         }
 
-        // Если нет анимации или режим "none" — просто текст + курсор
-        if (animStart === animEnd || currentAnim === 'none') {
-            buildWithCursor(newText, cursorPos, null, null);
-            return;
-        }
+        const hasSelection = selStart !== selEnd;
+        const hasAnim = animStart !== -1 && animEnd !== -1 && currentAnim !== 'none';
 
-        // Есть анимируемый диапазон
-        const before = newText.slice(0, animStart);
-        const middle = newText.slice(animStart, animEnd);
-        const after  = newText.slice(animEnd);
-
-        displayLayer.innerHTML = '';
-
-        // before
-        if (before) {
-            displayLayer.appendChild(document.createTextNode(before));
-        }
-
-        // Курсор внутри before?
-        if (cursorPos <= before.length && cursorPos >= 0) {
-            insertCursorAt(displayLayer, cursorPos, before);
-        }
-
-        // middle (анимированные символы)
-        if (middle.length <= 20) {
-            for (let i = 0; i < middle.length; i++) {
-                const ch = middle[i];
-                const s = document.createElement('span');
-                s.className = `char ${currentAnim}`;
-                s.textContent = ch;
-                displayLayer.appendChild(s);
-
-                // Курсор посередине middle?
-                if (cursorPos === before.length + i + 1) {
-                    const cursor = document.createElement('span');
-                    cursor.className = 'cursor';
-                    displayLayer.appendChild(cursor);
-                }
-            }
-        } else {
-            displayLayer.appendChild(document.createTextNode(middle));
-        }
-
-        // after
-        if (after) {
-            displayLayer.appendChild(document.createTextNode(after));
-        }
-
-        // Курсор в конце
-        if (cursorPos === newText.length) {
-            const cursor = document.createElement('span');
-            cursor.className = 'cursor';
-            displayLayer.appendChild(cursor);
-        }
-
-        // Курсор внутри after (если не попал выше)
-        if (cursorPos > animEnd && after) {
-            // Пересобираем — проще через buildWithCursor
-            buildWithCursor(newText, cursorPos, animStart, animEnd);
-        }
-    }
-
-    // Вспомогательная: собрать текст с курсором на правильной позиции
-    function buildWithCursor(text, pos, animStart, animEnd) {
-        displayLayer.innerHTML = '';
-        if (!text) {
-            if (cursorVisible && document.activeElement === realInput) {
+        // Если нет анимации и нет выделения — простой путь
+        if (!hasAnim && !hasSelection && cursorPos === newText.length) {
+            displayLayer.textContent = newText;
+            // Добавить курсор в конец если в фокусе
+            if (document.activeElement === realInput) {
                 const cursor = document.createElement('span');
                 cursor.className = 'cursor';
                 displayLayer.appendChild(cursor);
@@ -524,19 +489,30 @@
             return;
         }
 
-        for (let i = 0; i < text.length; i++) {
-            // Анимированный символ?
-            if (animStart !== null && i >= animStart && i < animEnd && (animEnd - animStart) <= 20) {
-                const s = document.createElement('span');
-                s.className = `char ${currentAnim}`;
-                s.textContent = text[i];
-                displayLayer.appendChild(s);
+        // Полный рендер через DOM
+        displayLayer.innerHTML = '';
+
+        for (let i = 0; i < newText.length; i++) {
+            const ch = newText[i];
+            const inSelection = hasSelection && i >= selStart && i < selEnd;
+            const inAnim = hasAnim && i >= animStart && i < animEnd && (animEnd - animStart) <= 20;
+
+            let node;
+            if (inAnim) {
+                node = document.createElement('span');
+                node.className = `char ${currentAnim}`;
+                node.textContent = ch;
+            } else if (inSelection) {
+                node = document.createElement('span');
+                node.className = 'sel';
+                node.textContent = ch;
             } else {
-                displayLayer.appendChild(document.createTextNode(text[i]));
+                node = document.createTextNode(ch);
             }
+            displayLayer.appendChild(node);
 
             // Курсор после этого символа
-            if (pos === i + 1) {
+            if (cursorPos === i + 1 && !hasSelection && document.activeElement === realInput) {
                 const cursor = document.createElement('span');
                 cursor.className = 'cursor';
                 displayLayer.appendChild(cursor);
@@ -544,27 +520,18 @@
         }
 
         // Курсор в начале (pos === 0)
-        if (pos === 0 && cursorVisible && document.activeElement === realInput) {
+        if (cursorPos === 0 && !hasSelection && document.activeElement === realInput) {
             const cursor = document.createElement('span');
             cursor.className = 'cursor';
             displayLayer.insertBefore(cursor, displayLayer.firstChild);
         }
 
-        // Курсор в самом конце
-        if (pos === text.length && cursorVisible && document.activeElement === realInput) {
-            // Уже вставлен в цикле? Нет, если pos === text.length, цикл не вставит
-            // Проверим, есть ли уже курсор
-            const existing = displayLayer.querySelector('.cursor');
-            if (!existing) {
-                const cursor = document.createElement('span');
-                cursor.className = 'cursor';
-                displayLayer.appendChild(cursor);
-            }
+        // Курсор в пустом поле
+        if (newText === '' && !hasSelection && document.activeElement === realInput) {
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            displayLayer.appendChild(cursor);
         }
-    }
-
-    function insertCursorAt(container, pos, textBefore) {
-        // Не используется — оставлен для совместимости
     }
 
     // ── Тихая загрузка из Firebase ────────────────────────────────────────────
@@ -621,8 +588,10 @@
 
         const shouldAnimate = deletedCount === 0 && insertedLen > 0 && insertedLen <= 20;
 
-        renderDisplay(newValue, start, shouldAnimate ? start + insertedLen : start);
+        const aStart = shouldAnimate ? start : -1;
+        const aEnd   = shouldAnimate ? newEnd : -1;
 
+        renderDisplay(newValue, aStart, aEnd);
         saveText(newValue);
     });
 
@@ -634,26 +603,22 @@
         displayLayer.scrollTop = realInput.scrollTop;
     });
 
-    // Фокус / blur — обновляем курсор
+    // Фокус / blur
     realInput.addEventListener('focus', () => {
         displayLayer.classList.add('focused');
-        cursorVisible = true;
-        renderDisplay(lastValue, 0, 0);
+        renderDisplay(lastValue, -1, -1);
     });
     realInput.addEventListener('blur', () => {
         displayLayer.classList.remove('focused');
-        cursorVisible = false;
-        // Убрать курсор
-        const cursors = displayLayer.querySelectorAll('.cursor');
-        cursors.forEach(c => c.remove());
+        renderDisplay(lastValue, -1, -1);
     });
 
-    // Клавиши которые двигают курсор — обновляем отображение
-    ['keydown', 'keyup', 'click', 'select'].forEach(evt => {
+    // Клавиши и выделение — обновляем отображение
+    ['keydown', 'keyup', 'click', 'select', 'selectionchange'].forEach(evt => {
         realInput.addEventListener(evt, () => {
             if (!isRemoteUpdate) {
                 requestAnimationFrame(() => {
-                    renderDisplay(lastValue, 0, 0);
+                    renderDisplay(lastValue, -1, -1);
                 });
             }
         });
