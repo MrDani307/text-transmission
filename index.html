@@ -136,11 +136,10 @@
             margin-bottom: 10px;
         }
 
-        /* Реальный textarea — полностью прозрачный, но перехватывает события */
         #real-input {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0.001; /* почти невидим, но работает выделение */
+            opacity: 0.001;
             resize: none; border: none; outline: none;
             background: transparent;
             color: transparent;
@@ -153,7 +152,6 @@
             overflow-y: auto;
         }
 
-        /* Визуальный слой */
         #display-layer {
             width: 100%;
             height: 160px;
@@ -176,7 +174,6 @@
             transition: border-color 0.2s, box-shadow 0.2s;
             cursor: text;
             position: relative; z-index: 1;
-            /* Запрещаем выделение в визуальном слое — оно работает в textarea */
             user-select: none;
             -webkit-user-select: none;
         }
@@ -207,11 +204,126 @@
             50%      { opacity: 0; }
         }
 
-        /* ── ВЫДЕЛЕНИЕ ТЕКСТА В ВИЗУАЛЬНОМ СЛОЕ ── */
+        /* ── ВЫДЕЛЕНИЕ ТЕКСТА ── */
         .sel {
             background: rgba(168, 85, 247, 0.45);
             border-radius: 2px;
             box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.3);
+        }
+
+        /* ── ФАЙЛОВЫЙ БЛОК ── */
+        .file-section {
+            margin-top: 12px;
+            margin-bottom: 10px;
+        }
+        .file-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        .file-card:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(168,85,247,0.25);
+        }
+        .file-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(99,102,241,0.3));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .file-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-size {
+            font-size: 11px;
+            color: rgba(255,255,255,0.35);
+            margin-top: 2px;
+        }
+        .file-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .file-btn {
+            width: 30px; height: 30px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            padding: 0;
+        }
+        .file-btn:hover {
+            background: rgba(168,85,247,0.2);
+            border-color: rgba(168,85,247,0.4);
+            color: #fff;
+        }
+        .file-btn.download:hover {
+            background: rgba(99,241,166,0.2);
+            border-color: rgba(99,241,166,0.4);
+            color: #6effa8;
+        }
+        .file-btn.remove:hover {
+            background: rgba(255,80,80,0.2);
+            border-color: rgba(255,80,80,0.4);
+            color: #ff8080;
+        }
+
+        /* ── КНОПКА ЗАГРУЗКИ ФАЙЛА ── */
+        .upload-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        #btn-upload {
+            flex: 1;
+            padding: 11px 16px;
+            border: 1px dashed rgba(168,85,247,0.4);
+            border-radius: 12px;
+            background: rgba(168,85,247,0.08);
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        #btn-upload:hover {
+            background: rgba(168,85,247,0.15);
+            border-color: rgba(168,85,247,0.6);
+            color: #fff;
+        }
+        #btn-upload.uploading {
+            border-style: solid;
+            background: rgba(168,85,247,0.2);
+        }
+        #file-input {
+            display: none;
         }
 
         /* ── Анимации ── */
@@ -335,7 +447,7 @@
     <div id="auth-screen">
         <div style="font-size:48px;margin-bottom:16px;">📝</div>
         <h2>Облачный Блокнот</h2>
-        <p>Войдите через Google чтобы синхронизировать текст между устройствами</p>
+        <p>Войдите через Google чтобы синхронизировать текст и файлы между устройствами</p>
         <button id="btn-login">
             <span class="google-icon">G</span>
             Войти через Google
@@ -374,6 +486,29 @@
 
         <div id="sync-status">—</div>
 
+        <!-- Файловый блок -->
+        <div class="upload-row">
+            <button id="btn-upload">
+                <span>📎</span>
+                <span id="upload-label">Прикрепить файл</span>
+            </button>
+            <input type="file" id="file-input">
+        </div>
+
+        <div id="file-section" class="file-section hidden">
+            <div id="file-card" class="file-card">
+                <div class="file-icon" id="file-icon">📄</div>
+                <div class="file-info">
+                    <div class="file-name" id="file-name">—</div>
+                    <div class="file-size" id="file-size">—</div>
+                </div>
+                <div class="file-actions">
+                    <button class="file-btn download" id="btn-file-download" title="Скачать">⬇</button>
+                    <button class="file-btn remove" id="btn-file-remove" title="Убрать файл">✕</button>
+                </div>
+            </div>
+        </div>
+
         <div class="btn-row">
             <button class="btn-action" id="btn-copy">Копировать всё</button>
             <button class="btn-action" id="btn-clear">Очистить всё</button>
@@ -385,8 +520,10 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getDatabase, ref, set, onValue }
+    import { getDatabase, ref, set, onValue, remove }
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyC6JayNN_rZcn8o9scI5gBEVKO6xXhQLV4",
@@ -401,6 +538,7 @@
     const app      = initializeApp(firebaseConfig);
     const auth     = getAuth(app);
     const db       = getDatabase(app);
+    const storage  = getStorage(app);
     const provider = new GoogleAuthProvider();
 
     const authScreen   = document.getElementById('auth-screen');
@@ -415,6 +553,17 @@
     const animPicker   = document.getElementById('anim-picker');
     const syncStatus   = document.getElementById('sync-status');
 
+    // Файловые элементы
+    const btnUpload      = document.getElementById('btn-upload');
+    const fileInput      = document.getElementById('file-input');
+    const uploadLabel    = document.getElementById('upload-label');
+    const fileSection    = document.getElementById('file-section');
+    const fileNameEl     = document.getElementById('file-name');
+    const fileSizeEl     = document.getElementById('file-size');
+    const fileIconEl     = document.getElementById('file-icon');
+    const btnFileDownload = document.getElementById('btn-file-download');
+    const btnFileRemove  = document.getElementById('btn-file-remove');
+
     let currentUser    = null;
     let isTyping       = false;
     let typingTimeout  = null;
@@ -425,8 +574,7 @@
     let cursorPos      = 0;
     let selStart       = 0;
     let selEnd         = 0;
-    let pendingAnimStart = -1;
-    let pendingAnimEnd   = -1;
+    let currentFile    = null; // { name, size, type, url, path }
 
     // ── Выбор анимации ────────────────────────────────────────────────────────
     animPicker.addEventListener('click', (e) => {
@@ -460,14 +608,12 @@
     }
 
     // ── Рендер display-layer ──────────────────────────────────────────────────
-    // animStart/animEnd — диапазон для анимации (в newText). -1 = нет анимации.
     function renderDisplay(newText, animStart, animEnd) {
         const sel = getSelectionState();
         cursorPos = sel.cursor;
         selStart = sel.selStart;
         selEnd = sel.selEnd;
 
-        // Обновляем плейсхолдер
         if (newText === '') {
             displayLayer.classList.add('empty');
         } else {
@@ -477,10 +623,8 @@
         const hasSelection = selStart !== selEnd;
         const hasAnim = animStart !== -1 && animEnd !== -1 && currentAnim !== 'none';
 
-        // Если нет анимации и нет выделения — простой путь
         if (!hasAnim && !hasSelection && cursorPos === newText.length) {
             displayLayer.textContent = newText;
-            // Добавить курсор в конец если в фокусе
             if (document.activeElement === realInput) {
                 const cursor = document.createElement('span');
                 cursor.className = 'cursor';
@@ -489,7 +633,6 @@
             return;
         }
 
-        // Полный рендер через DOM
         displayLayer.innerHTML = '';
 
         for (let i = 0; i < newText.length; i++) {
@@ -511,7 +654,6 @@
             }
             displayLayer.appendChild(node);
 
-            // Курсор после этого символа
             if (cursorPos === i + 1 && !hasSelection && document.activeElement === realInput) {
                 const cursor = document.createElement('span');
                 cursor.className = 'cursor';
@@ -519,14 +661,12 @@
             }
         }
 
-        // Курсор в начале (pos === 0)
         if (cursorPos === 0 && !hasSelection && document.activeElement === realInput) {
             const cursor = document.createElement('span');
             cursor.className = 'cursor';
             displayLayer.insertBefore(cursor, displayLayer.firstChild);
         }
 
-        // Курсор в пустом поле
         if (newText === '' && !hasSelection && document.activeElement === realInput) {
             const cursor = document.createElement('span');
             cursor.className = 'cursor';
@@ -549,7 +689,7 @@
         isRemoteUpdate = false;
     }
 
-    // ── Сохранение ────────────────────────────────────────────────────────────
+    // ── Сохранение текста ─────────────────────────────────────────────────────
     function saveText(text) {
         if (!currentUser) return;
         isTyping = true;
@@ -571,7 +711,6 @@
         const oldValue = lastValue;
         lastValue = newValue;
 
-        // Найти что изменилось
         let start = 0;
         while (start < oldValue.length && start < newValue.length && oldValue[start] === newValue[start]) {
             start++;
@@ -595,15 +734,12 @@
         saveText(newValue);
     });
 
-    // Клик на display-layer → фокус на реальный input
     displayLayer.addEventListener('click', () => realInput.focus());
 
-    // Синхронизация прокрутки
     realInput.addEventListener('scroll', () => {
         displayLayer.scrollTop = realInput.scrollTop;
     });
 
-    // Фокус / blur
     realInput.addEventListener('focus', () => {
         displayLayer.classList.add('focused');
         renderDisplay(lastValue, -1, -1);
@@ -613,7 +749,6 @@
         renderDisplay(lastValue, -1, -1);
     });
 
-    // Клавиши и выделение — обновляем отображение
     ['keydown', 'keyup', 'click', 'select', 'selectionchange'].forEach(evt => {
         realInput.addEventListener(evt, () => {
             if (!isRemoteUpdate) {
@@ -624,7 +759,129 @@
         });
     });
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    //  ФАЙЛЫ — загрузка, скачивание, удаление
+    // ════════════════════════════════════════════════════════════════════════
+
+    // Иконка по типу файла
+    function getFileIcon(type, name) {
+        if (type?.startsWith('image/')) return '🖼';
+        if (type?.startsWith('video/')) return '🎬';
+        if (type?.startsWith('audio/')) return '🎵';
+        if (type?.startsWith('text/') || name?.endsWith('.txt') || name?.endsWith('.md')) return '📝';
+        if (name?.endsWith('.pdf')) return '📕';
+        if (name?.endsWith('.zip') || name?.endsWith('.rar') || name?.endsWith('.7z')) return '📦';
+        if (name?.endsWith('.doc') || name?.endsWith('.docx')) return '📘';
+        if (name?.endsWith('.xls') || name?.endsWith('.xlsx')) return '📗';
+        if (name?.endsWith('.ppt') || name?.endsWith('.pptx')) return '📙';
+        if (name?.endsWith('.js') || name?.endsWith('.html') || name?.endsWith('.css') || name?.endsWith('.py')) return '💻';
+        return '📄';
+    }
+
+    // Формат размера
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' Б';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' ГБ';
+    }
+
+    // Показать файл
+    function showFile(fileData) {
+        if (!fileData) {
+            currentFile = null;
+            fileSection.classList.add('hidden');
+            uploadLabel.textContent = 'Прикрепить файл';
+            btnUpload.classList.remove('uploading');
+            return;
+        }
+        currentFile = fileData;
+        fileNameEl.textContent = fileData.name;
+        fileSizeEl.textContent = formatSize(fileData.size);
+        fileIconEl.textContent = getFileIcon(fileData.type, fileData.name);
+        fileSection.classList.remove('hidden');
+        uploadLabel.textContent = 'Заменить файл';
+    }
+
+    // ── Загрузка файла ──────────────────────────────────────────────────────
+    btnUpload.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file || !currentUser) return;
+
+        // Удалить старый файл если есть
+        if (currentFile?.path) {
+            try { await deleteObject(storageRef(storage, currentFile.path)); } catch(e) {}
+        }
+
+        btnUpload.classList.add('uploading');
+        uploadLabel.textContent = 'Загрузка...';
+        setStatus('Загрузка файла...', 'saving');
+
+        const path = `users/${currentUser.uid}/files/${Date.now()}_${file.name}`;
+        const sRef = storageRef(storage, path);
+
+        try {
+            await uploadBytes(sRef, file);
+            const url = await getDownloadURL(sRef);
+
+            const fileData = {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                url: url,
+                path: path,
+                uploadedAt: Date.now()
+            };
+
+            await set(ref(db, 'users/' + currentUser.uid + '/file'), fileData);
+            showFile(fileData);
+            setStatus('Файл загружен ✓', 'saved');
+        } catch (err) {
+            console.error(err);
+            setStatus('Ошибка загрузки', '');
+            uploadLabel.textContent = 'Прикрепить файл';
+            btnUpload.classList.remove('uploading');
+        }
+
+        fileInput.value = '';
+    });
+
+    // ── Скачать файл ────────────────────────────────────────────────────────
+    btnFileDownload.addEventListener('click', () => {
+        if (!currentFile?.url) return;
+        const a = document.createElement('a');
+        a.href = currentFile.url;
+        a.download = currentFile.name;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    });
+
+    // ── Убрать файл ─────────────────────────────────────────────────────────
+    btnFileRemove.addEventListener('click', async () => {
+        if (!currentUser || !currentFile) return;
+
+        setStatus('Удаление...', 'saving');
+        try {
+            if (currentFile.path) {
+                await deleteObject(storageRef(storage, currentFile.path));
+            }
+            await remove(ref(db, 'users/' + currentUser.uid + '/file'));
+            showFile(null);
+            setStatus('Файл удалён', 'saved');
+        } catch (err) {
+            console.error(err);
+            setStatus('Ошибка удаления', '');
+        }
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  AUTH
+    // ════════════════════════════════════════════════════════════════════════
+
     onAuthStateChanged(auth, (user) => {
         if (user) {
             currentUser = user;
@@ -632,10 +889,18 @@
             authScreen.classList.add('hidden');
             appScreen.classList.remove('hidden');
 
+            // Текст
             const textRef = ref(db, 'users/' + user.uid + '/text');
             onValue(textRef, (snapshot) => {
                 const data = snapshot.val() ?? '';
                 if (!isTyping) loadTextSilently(data);
+            });
+
+            // Файл
+            const fileRef = ref(db, 'users/' + user.uid + '/file');
+            onValue(fileRef, (snapshot) => {
+                const data = snapshot.val();
+                showFile(data);
             });
         } else {
             currentUser = null;
@@ -645,6 +910,7 @@
             displayLayer.textContent = '';
             displayLayer.classList.add('empty');
             lastValue = '';
+            showFile(null);
         }
     });
 
