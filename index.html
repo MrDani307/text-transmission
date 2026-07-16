@@ -322,6 +322,11 @@
             border-style: solid;
             background: rgba(168,85,247,0.2);
         }
+        #btn-upload.error {
+            border-color: rgba(255,80,80,0.5);
+            background: rgba(255,80,80,0.1);
+            color: rgba(255,120,120,0.9);
+        }
         #file-input {
             display: none;
         }
@@ -574,7 +579,7 @@
     let cursorPos      = 0;
     let selStart       = 0;
     let selEnd         = 0;
-    let currentFile    = null; // { name, size, type, url, path }
+    let currentFile    = null;
 
     // ── Выбор анимации ────────────────────────────────────────────────────────
     animPicker.addEventListener('click', (e) => {
@@ -763,7 +768,6 @@
     //  ФАЙЛЫ — загрузка, скачивание, удаление
     // ════════════════════════════════════════════════════════════════════════
 
-    // Иконка по типу файла
     function getFileIcon(type, name) {
         if (type?.startsWith('image/')) return '🖼';
         if (type?.startsWith('video/')) return '🎬';
@@ -778,7 +782,6 @@
         return '📄';
     }
 
-    // Формат размера
     function formatSize(bytes) {
         if (bytes < 1024) return bytes + ' Б';
         if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
@@ -786,13 +789,16 @@
         return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' ГБ';
     }
 
-    // Показать файл
+    function resetUploadBtn() {
+        btnUpload.classList.remove('uploading', 'error');
+        uploadLabel.textContent = currentFile ? 'Заменить файл' : 'Прикрепить файл';
+    }
+
     function showFile(fileData) {
         if (!fileData) {
             currentFile = null;
             fileSection.classList.add('hidden');
-            uploadLabel.textContent = 'Прикрепить файл';
-            btnUpload.classList.remove('uploading');
+            resetUploadBtn();
             return;
         }
         currentFile = fileData;
@@ -803,15 +809,22 @@
         uploadLabel.textContent = 'Заменить файл';
     }
 
-    // ── Загрузка файла ──────────────────────────────────────────────────────
-    btnUpload.addEventListener('click', () => fileInput.click());
+    // ── Конвертация файл → base64 ───────────────────────────────────────────
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
 
-    fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file || !currentUser) return;
+    // ── Загрузка файла (Storage с fallback на base64) ────────────────────────
+    async function uploadFile(file) {
+        if (!currentUser) return;
 
-        // Удалить старый файл если есть
-        if (currentFile?.path) {
+        // Удалить старый файл
+        if (currentFile?.path && currentFile?.mode === 'storage') {
             try { await deleteObject(storageRef(storage, currentFile.path)); } catch(e) {}
         }
 
@@ -819,19 +832,49 @@
         uploadLabel.textContent = 'Загрузка...';
         setStatus('Загрузка файла...', 'saving');
 
-        const path = `users/${currentUser.uid}/files/${Date.now()}_${file.name}`;
-        const sRef = storageRef(storage, path);
+        // Пробуем Firebase Storage (для файлов > 1 МБ)
+        if (file.size > 1024 * 1024) {
+            try {
+                const path = `users/${currentUser.uid}/files/${Date.now()}_${file.name}`;
+                const sRef = storageRef(storage, path);
+                await uploadBytes(sRef, file);
+                const url = await getDownloadURL(sRef);
 
+                const fileData = {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    url: url,
+                    path: path,
+                    mode: 'storage',
+                    uploadedAt: Date.now()
+                };
+
+                await set(ref(db, 'users/' + currentUser.uid + '/file'), fileData);
+                showFile(fileData);
+                setStatus('Файл загружен ✓', 'saved');
+                return;
+            } catch (err) {
+                console.warn('Storage failed, falling back to base64:', err.message);
+                // Fallback ниже
+            }
+        }
+
+        // Fallback: base64 в Realtime Database (для файлов ≤ 1 МБ или если Storage не работает)
         try {
-            await uploadBytes(sRef, file);
-            const url = await getDownloadURL(sRef);
+            const base64 = await fileToBase64(file);
+
+            // Проверка лимита Firebase RTDB (~10 МБ на узел)
+            if (base64.length > 9 * 1024 * 1024) {
+                throw new Error('Файл слишком большой (>9 МБ). Включите Firebase Storage в консоли.');
+            }
 
             const fileData = {
                 name: file.name,
                 size: file.size,
                 type: file.type,
-                url: url,
-                path: path,
+                data: base64,
+                mode: 'base64',
                 uploadedAt: Date.now()
             };
 
@@ -840,24 +883,44 @@
             setStatus('Файл загружен ✓', 'saved');
         } catch (err) {
             console.error(err);
-            setStatus('Ошибка загрузки', '');
-            uploadLabel.textContent = 'Прикрепить файл';
-            btnUpload.classList.remove('uploading');
+            btnUpload.classList.add('error');
+            uploadLabel.textContent = 'Ошибка загрузки';
+            setStatus(err.message || 'Ошибка загрузки', '');
+            setTimeout(resetUploadBtn, 3000);
         }
+    }
 
+    btnUpload.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        uploadFile(file);
         fileInput.value = '';
     });
 
     // ── Скачать файл ────────────────────────────────────────────────────────
     btnFileDownload.addEventListener('click', () => {
-        if (!currentFile?.url) return;
-        const a = document.createElement('a');
-        a.href = currentFile.url;
-        a.download = currentFile.name;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        if (!currentFile) return;
+
+        if (currentFile.mode === 'base64' && currentFile.data) {
+            // Скачивание base64
+            const a = document.createElement('a');
+            a.href = currentFile.data;
+            a.download = currentFile.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } else if (currentFile.url) {
+            // Скачивание по URL
+            const a = document.createElement('a');
+            a.href = currentFile.url;
+            a.download = currentFile.name;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
     });
 
     // ── Убрать файл ─────────────────────────────────────────────────────────
@@ -866,8 +929,8 @@
 
         setStatus('Удаление...', 'saving');
         try {
-            if (currentFile.path) {
-                await deleteObject(storageRef(storage, currentFile.path));
+            if (currentFile.mode === 'storage' && currentFile.path) {
+                try { await deleteObject(storageRef(storage, currentFile.path)); } catch(e) {}
             }
             await remove(ref(db, 'users/' + currentUser.uid + '/file'));
             showFile(null);
