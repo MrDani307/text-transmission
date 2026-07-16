@@ -1,3 +1,4 @@
+<!-- Облачный Блокнот v4 — файлы через base64, без Storage -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -527,8 +528,6 @@
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, set, onValue, remove }
         from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject }
-        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyC6JayNN_rZcn8o9scI5gBEVKO6xXhQLV4",
@@ -543,7 +542,6 @@
     const app      = initializeApp(firebaseConfig);
     const auth     = getAuth(app);
     const db       = getDatabase(app);
-    const storage  = getStorage(app);
     const provider = new GoogleAuthProvider();
 
     const authScreen   = document.getElementById('auth-screen');
@@ -559,15 +557,15 @@
     const syncStatus   = document.getElementById('sync-status');
 
     // Файловые элементы
-    const btnUpload      = document.getElementById('btn-upload');
-    const fileInput      = document.getElementById('file-input');
-    const uploadLabel    = document.getElementById('upload-label');
-    const fileSection    = document.getElementById('file-section');
-    const fileNameEl     = document.getElementById('file-name');
-    const fileSizeEl     = document.getElementById('file-size');
-    const fileIconEl     = document.getElementById('file-icon');
+    const btnUpload       = document.getElementById('btn-upload');
+    const fileInput       = document.getElementById('file-input');
+    const uploadLabel     = document.getElementById('upload-label');
+    const fileSection     = document.getElementById('file-section');
+    const fileNameEl      = document.getElementById('file-name');
+    const fileSizeEl      = document.getElementById('file-size');
+    const fileIconEl      = document.getElementById('file-icon');
     const btnFileDownload = document.getElementById('btn-file-download');
-    const btnFileRemove  = document.getElementById('btn-file-remove');
+    const btnFileRemove   = document.getElementById('btn-file-remove');
 
     let currentUser    = null;
     let isTyping       = false;
@@ -765,7 +763,7 @@
     });
 
     // ════════════════════════════════════════════════════════════════════════
-    //  ФАЙЛЫ — загрузка, скачивание, удаление
+    //  ФАЙЛЫ — только base64 через Realtime Database (бесплатно, Spark plan)
     // ════════════════════════════════════════════════════════════════════════
 
     function getFileIcon(type, name) {
@@ -809,7 +807,7 @@
         uploadLabel.textContent = 'Заменить файл';
     }
 
-    // ── Конвертация файл → base64 ───────────────────────────────────────────
+    // Конвертация файл → base64
     function fileToBase64(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -819,54 +817,20 @@
         });
     }
 
-    // ── Загрузка файла (Storage с fallback на base64) ────────────────────────
+    // ── Загрузка файла (только base64 в RTDB) ────────────────────────────────
     async function uploadFile(file) {
         if (!currentUser) return;
-
-        // Удалить старый файл
-        if (currentFile?.path && currentFile?.mode === 'storage') {
-            try { await deleteObject(storageRef(storage, currentFile.path)); } catch(e) {}
-        }
 
         btnUpload.classList.add('uploading');
         uploadLabel.textContent = 'Загрузка...';
         setStatus('Загрузка файла...', 'saving');
 
-        // Пробуем Firebase Storage (для файлов > 1 МБ)
-        if (file.size > 1024 * 1024) {
-            try {
-                const path = `users/${currentUser.uid}/files/${Date.now()}_${file.name}`;
-                const sRef = storageRef(storage, path);
-                await uploadBytes(sRef, file);
-                const url = await getDownloadURL(sRef);
-
-                const fileData = {
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    url: url,
-                    path: path,
-                    mode: 'storage',
-                    uploadedAt: Date.now()
-                };
-
-                await set(ref(db, 'users/' + currentUser.uid + '/file'), fileData);
-                showFile(fileData);
-                setStatus('Файл загружен ✓', 'saved');
-                return;
-            } catch (err) {
-                console.warn('Storage failed, falling back to base64:', err.message);
-                // Fallback ниже
-            }
-        }
-
-        // Fallback: base64 в Realtime Database (для файлов ≤ 1 МБ или если Storage не работает)
         try {
             const base64 = await fileToBase64(file);
 
-            // Проверка лимита Firebase RTDB (~10 МБ на узел)
+            // Лимит Firebase RTDB ~10 МБ на узел
             if (base64.length > 9 * 1024 * 1024) {
-                throw new Error('Файл слишком большой (>9 МБ). Включите Firebase Storage в консоли.');
+                throw new Error('Файл слишком большой. Максимум ~6-7 МБ на бесплатном плане.');
             }
 
             const fileData = {
@@ -874,7 +838,6 @@
                 size: file.size,
                 type: file.type,
                 data: base64,
-                mode: 'base64',
                 uploadedAt: Date.now()
             };
 
@@ -884,7 +847,7 @@
         } catch (err) {
             console.error(err);
             btnUpload.classList.add('error');
-            uploadLabel.textContent = 'Ошибка загрузки';
+            uploadLabel.textContent = 'Ошибка';
             setStatus(err.message || 'Ошибка загрузки', '');
             setTimeout(resetUploadBtn, 3000);
         }
@@ -901,26 +864,13 @@
 
     // ── Скачать файл ────────────────────────────────────────────────────────
     btnFileDownload.addEventListener('click', () => {
-        if (!currentFile) return;
-
-        if (currentFile.mode === 'base64' && currentFile.data) {
-            // Скачивание base64
-            const a = document.createElement('a');
-            a.href = currentFile.data;
-            a.download = currentFile.name;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        } else if (currentFile.url) {
-            // Скачивание по URL
-            const a = document.createElement('a');
-            a.href = currentFile.url;
-            a.download = currentFile.name;
-            a.target = '_blank';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
+        if (!currentFile?.data) return;
+        const a = document.createElement('a');
+        a.href = currentFile.data;
+        a.download = currentFile.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     });
 
     // ── Убрать файл ─────────────────────────────────────────────────────────
@@ -929,9 +879,6 @@
 
         setStatus('Удаление...', 'saving');
         try {
-            if (currentFile.mode === 'storage' && currentFile.path) {
-                try { await deleteObject(storageRef(storage, currentFile.path)); } catch(e) {}
-            }
             await remove(ref(db, 'users/' + currentUser.uid + '/file'));
             showFile(null);
             setStatus('Файл удалён', 'saved');
