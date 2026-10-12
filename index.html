@@ -1,990 +1,960 @@
+<!-- Облачный Блокнот v4 — файлы через base64, без Storage -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Облачный Блокнот v4</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Облачный Блокнот</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
-<style>
-:root {
-    color-scheme: dark;
-    --bg: #0b0d12;
-    --panel: #141821;
-    --panel2: #1b202b;
-    --border: #2a3140;
-    --text: #e7eaf0;
-    --muted: #9099aa;
-    --accent: #8b7cff;
-    --danger: #ff7272;
-    --success: #6dd6a0;
-}
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            position: relative;
+            overflow: hidden;
+        }
 
-* {
-    box-sizing: border-box;
-}
+        body::before, body::after {
+            content: '';
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.35;
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::before {
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, #7b2ff7, #4a00e0);
+            top: -150px; left: -150px;
+            animation: float1 8s ease-in-out infinite;
+        }
+        body::after {
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, #00c3ff, #0066ff);
+            bottom: -100px; right: -100px;
+            animation: float2 10s ease-in-out infinite;
+        }
 
-body {
-    margin: 0;
-    min-height: 100dvh;
-    background: var(--bg);
-    color: var(--text);
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
+        @keyframes float1 {
+            0%, 100% { transform: translate(0,0); }
+            50%       { transform: translate(40px,40px); }
+        }
+        @keyframes float2 {
+            0%, 100% { transform: translate(0,0); }
+            50%       { transform: translate(-30px,-30px); }
+        }
 
-button, input, select {
-    font: inherit;
-}
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 520px;
+            background: rgba(255,255,255,0.07);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 24px;
+            padding: 32px 28px 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+        }
 
-button {
-    border: 1px solid var(--border);
-    background: var(--panel2);
-    color: var(--text);
-    padding: 10px 14px;
-    border-radius: 10px;
-    cursor: pointer;
-}
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #a855f7, #6366f1);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            box-shadow: 0 0 16px rgba(168,85,247,0.5);
+        }
+        .logo-text {
+            font-size: 16px; font-weight: 600;
+            color: rgba(255,255,255,0.9); letter-spacing: 0.3px;
+        }
+        #user-info {
+            font-size: 12px; color: rgba(255,255,255,0.45);
+            max-width: 170px; overflow: hidden;
+            text-overflow: ellipsis; white-space: nowrap;
+        }
+        #btn-logout {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: rgba(255,100,100,0.8);
+            font-size: 18px; cursor: pointer;
+            width: 34px; height: 34px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; flex-shrink: 0; margin-left: 10px;
+        }
+        #btn-logout:hover {
+            background: rgba(255,80,80,0.2);
+            border-color: rgba(255,80,80,0.4); color: #ff6464;
+        }
 
-button:disabled {
-    opacity: .5;
-    cursor: not-allowed;
-}
+        .divider {
+            height: 1px;
+            background: rgba(255,255,255,0.07);
+            margin: 20px 0 18px;
+        }
 
-button.primary {
-    background: var(--accent);
-    color: #fff;
-    border-color: transparent;
-}
+        #anim-picker {
+            display: flex; gap: 6px;
+            flex-wrap: wrap; margin-bottom: 14px;
+        }
+        .anim-btn {
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.45);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 5px 13px; border-radius: 20px;
+            font-size: 12px; cursor: pointer;
+            transition: all 0.2s; width: auto; margin: 0;
+        }
+        .anim-btn:hover {
+            background: rgba(168,85,247,0.2);
+            border-color: rgba(168,85,247,0.5); color: #fff;
+        }
+        .anim-btn.active {
+            background: linear-gradient(135deg,rgba(168,85,247,0.5),rgba(99,102,241,0.5));
+            border-color: rgba(168,85,247,0.7); color: #fff;
+            box-shadow: 0 0 12px rgba(168,85,247,0.3);
+        }
 
-button:hover:not(:disabled) {
-    filter: brightness(1.12);
-}
+        /* ── Поле ввода ── */
+        .input-wrapper {
+            position: relative;
+            margin-bottom: 10px;
+        }
 
-input, select {
-    width: 100%;
-    min-width: 0;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px;
-    color: var(--text);
-    outline: none;
-}
+        #real-input {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0.001;
+            resize: none; border: none; outline: none;
+            background: transparent;
+            color: transparent;
+            caret-color: transparent;
+            font-size: 14px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.65;
+            padding: 14px 16px;
+            z-index: 2; cursor: text;
+            overflow-y: auto;
+        }
 
-input:focus, select:focus {
-    border-color: var(--accent);
-}
+        #display-layer {
+            width: 100%;
+            height: 160px;
+            min-height: 60px;
+            max-height: 500px;
+            resize: vertical;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 14px;
+            padding: 14px 16px;
+            font-size: 14px;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            line-height: 1.65;
+            color: rgba(255,255,255,0.92);
+            white-space: pre-wrap;
+            word-break: break-word;
+            text-align: left;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            cursor: text;
+            position: relative; z-index: 1;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #display-layer.focused {
+            border-color: rgba(168,85,247,0.5);
+            box-shadow: 0 0 0 3px rgba(168,85,247,0.12),
+                        inset 0 0 20px rgba(168,85,247,0.04);
+        }
+        #display-layer.empty::before {
+            content: "Введите текст здесь...";
+            color: rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
 
-#login-screen {
-    min-height: 100dvh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-}
+        /* ── КУРСОР ── */
+        .cursor {
+            display: inline-block;
+            width: 2px;
+            height: 1.2em;
+            background: #a855f7;
+            vertical-align: text-bottom;
+            margin-left: -1px;
+            animation: blink-cursor 1s step-end infinite;
+            box-shadow: 0 0 4px #a855f7, 0 0 8px #a855f7;
+        }
+        @keyframes blink-cursor {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0; }
+        }
 
-.login-card {
-    width: 100%;
-    max-width: 400px;
-    padding: 26px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-}
+        /* ── ВЫДЕЛЕНИЕ ТЕКСТА ── */
+        .sel {
+            background: rgba(168, 85, 247, 0.45);
+            border-radius: 2px;
+            box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.3);
+        }
 
-.login-card h1 {
-    margin: 0 0 8px;
-    font-size: 25px;
-}
+        /* ── ФАЙЛОВЫЙ БЛОК ── */
+        .file-section {
+            margin-top: 12px;
+            margin-bottom: 10px;
+        }
+        .file-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        .file-card:hover {
+            background: rgba(255,255,255,0.08);
+            border-color: rgba(168,85,247,0.25);
+        }
+        .file-icon {
+            width: 40px; height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(168,85,247,0.3), rgba(99,102,241,0.3));
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+        .file-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255,255,255,0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .file-size {
+            font-size: 11px;
+            color: rgba(255,255,255,0.35);
+            margin-top: 2px;
+        }
+        .file-actions {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .file-btn {
+            width: 30px; height: 30px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            padding: 0;
+        }
+        .file-btn:hover {
+            background: rgba(168,85,247,0.2);
+            border-color: rgba(168,85,247,0.4);
+            color: #fff;
+        }
+        .file-btn.download:hover {
+            background: rgba(99,241,166,0.2);
+            border-color: rgba(99,241,166,0.4);
+            color: #6effa8;
+        }
+        .file-btn.remove:hover {
+            background: rgba(255,80,80,0.2);
+            border-color: rgba(255,80,80,0.4);
+            color: #ff8080;
+        }
 
-.muted {
-    color: var(--muted);
-    font-size: 14px;
-}
+        /* ── КНОПКА ЗАГРУЗКИ ФАЙЛА ── */
+        .upload-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        #btn-upload {
+            flex: 1;
+            padding: 11px 16px;
+            border: 1px dashed rgba(168,85,247,0.4);
+            border-radius: 12px;
+            background: rgba(168,85,247,0.08);
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        #btn-upload:hover {
+            background: rgba(168,85,247,0.15);
+            border-color: rgba(168,85,247,0.6);
+            color: #fff;
+        }
+        #btn-upload.uploading {
+            border-style: solid;
+            background: rgba(168,85,247,0.2);
+        }
+        #btn-upload.error {
+            border-color: rgba(255,80,80,0.5);
+            background: rgba(255,80,80,0.1);
+            color: rgba(255,120,120,0.9);
+        }
+        #file-input {
+            display: none;
+        }
 
-#login-error {
-    color: var(--danger);
-    font-size: 13px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    margin-top: 12px;
-}
+        /* ── Анимации ── */
+        @keyframes anim-fade {
+            from { opacity: 0; } to { opacity: 1; }
+        }
+        @keyframes anim-slide-up {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes anim-scale {
+            from { opacity: 0; transform: scale(0.2); }
+            to   { opacity: 1; transform: scale(1); }
+        }
+        @keyframes anim-glow {
+            0%   { opacity:0; color:#c084fc; text-shadow:0 0 10px #a855f7,0 0 25px #a855f7; }
+            50%  { opacity:1; color:#e0aaff; text-shadow:0 0 6px #a855f7; }
+            100% { opacity:1; color:rgba(255,255,255,0.92); text-shadow:none; }
+        }
+        @keyframes anim-bounce {
+            0%   { opacity:0; transform:translateY(-10px); }
+            55%  { opacity:1; transform:translateY(3px); }
+            75%  { transform:translateY(-2px); }
+            100% { opacity:1; transform:translateY(0); }
+        }
+        @keyframes anim-typewriter {
+            0%,49% { opacity:1; color:#c084fc; text-shadow:0 0 6px #a855f7; }
+            50%,99%{ opacity:0; }
+            100%   { opacity:1; color:rgba(255,255,255,0.92); text-shadow:none; }
+        }
 
-#app {
-    display: none;
-    min-height: 100dvh;
-    flex-direction: column;
-}
+        .char {
+            display: inline-block;
+            white-space: pre;
+            vertical-align: baseline;
+        }
+        .anim-fade       { animation: anim-fade       0.25s ease forwards; }
+        .anim-slide-up   { animation: anim-slide-up   0.28s ease forwards; }
+        .anim-scale      { animation: anim-scale       0.22s cubic-bezier(.34,1.56,.64,1) forwards; }
+        .anim-glow       { animation: anim-glow        0.5s  ease forwards; }
+        .anim-bounce     { animation: anim-bounce      0.35s ease forwards; }
+        .anim-typewriter { animation: anim-typewriter  0.45s steps(1) forwards; }
 
-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    background: var(--panel);
-}
+        /* ── Статус ── */
+        #sync-status {
+            font-size: 11px; color: rgba(255,255,255,0.25);
+            text-align: right; margin-bottom: 10px; height: 14px;
+            transition: color 0.3s;
+        }
+        #sync-status.saving { color: rgba(168,85,247,0.7); }
+        #sync-status.saved  { color: rgba(99,241,166,0.6); }
 
-.brand {
-    font-weight: 700;
-    font-size: 17px;
-    white-space: nowrap;
-}
+        /* ── Кнопки ── */
+        .btn-row { display: flex; gap: 8px; }
+        .btn-action {
+            flex: 1; padding: 11px 16px; border: none;
+            border-radius: 12px; font-size: 14px; font-weight: 500;
+            cursor: pointer; transition: all 0.2s; width: auto; margin: 0;
+        }
+        #btn-copy {
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.8);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        #btn-copy:hover { background: rgba(255,255,255,0.14); color: #fff; }
+        #btn-copy.copied {
+            background: linear-gradient(135deg,rgba(99,241,166,0.3),rgba(34,197,94,0.3));
+            border-color: rgba(99,241,166,0.4); color: #6effa8;
+        }
+        #btn-clear {
+            background: rgba(255,80,80,0.1);
+            color: rgba(255,120,120,0.8);
+            border: 1px solid rgba(255,80,80,0.2);
+        }
+        #btn-clear:hover {
+            background: rgba(255,80,80,0.22);
+            color: #ff8080;
+            border-color: rgba(255,80,80,0.4);
+        }
 
-.header-spacer {
-    flex: 1;
-}
+        /* ── Авторизация ── */
+        #auth-screen { text-align: center; padding: 10px 0; }
+        #auth-screen h2 {
+            font-size: 22px; font-weight: 700;
+            color: #fff; margin-bottom: 8px;
+        }
+        #auth-screen p {
+            font-size: 14px; color: rgba(255,255,255,0.45);
+            margin-bottom: 28px; line-height: 1.5;
+        }
+        #btn-login {
+            width: 100%; padding: 13px; border: none;
+            border-radius: 14px; font-size: 15px; font-weight: 600;
+            cursor: pointer;
+            background: linear-gradient(135deg, #a855f7, #6366f1);
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(168,85,247,0.4);
+            transition: all 0.2s;
+            display: flex; align-items: center;
+            justify-content: center; gap: 10px; margin: 0;
+        }
+        #btn-login:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 28px rgba(168,85,247,0.55);
+        }
+        #btn-login:active { transform: translateY(0); }
+        .google-icon {
+            width: 20px; height: 20px; background: #fff;
+            border-radius: 50%; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; color: #4285f4;
+            flex-shrink: 0;
+        }
 
-#user-info {
-    color: var(--muted);
-    font-size: 12px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 180px;
-}
-
-.toolbar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    padding: 10px 12px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-}
-
-.toolbar select {
-    width: auto;
-    flex: 1;
-    min-width: 130px;
-    max-width: 240px;
-    padding: 10px;
-}
-
-#save-status {
-    margin-left: auto;
-    color: var(--muted);
-    font-size: 12px;
-}
-
-#save-status.error {
-    color: var(--danger);
-}
-
-#save-status.saved {
-    color: var(--success);
-}
-
-.editor-shell {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    padding: 12px;
-}
-
-#editor {
-    flex: 1;
-    min-height: 300px;
-    overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #0f1219;
-}
-
-.cm-editor {
-    height: 100%;
-    font-size: 14px;
-}
-
-.cm-scroller {
-    overflow: auto;
-}
-
-.cm-gutters {
-    background: #11151d !important;
-    border-right: 1px solid var(--border) !important;
-    color: #697386 !important;
-}
-
-.cm-activeLineGutter,
-.cm-activeLine {
-    background: #ffffff08 !important;
-}
-
-.files-panel {
-    margin: 0 12px 12px;
-    padding: 14px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-}
-
-.files-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-bottom: 12px;
-}
-
-.files-header strong {
-    margin-right: auto;
-}
-
-#file-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.file-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow-wrap: anywhere;
-}
-
-.file-name {
-    flex: 1;
-    min-width: 0;
-    font-size: 13px;
-}
-
-.file-size {
-    color: var(--muted);
-    font-size: 11px;
-    white-space: nowrap;
-}
-
-.empty {
-    color: var(--muted);
-    font-size: 13px;
-    padding: 8px 0;
-}
-
-#app-error {
-    display: none;
-    margin: 12px;
-    padding: 12px;
-    color: var(--danger);
-    background: #ff727210;
-    border: 1px solid #ff727240;
-    border-radius: 10px;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 13px;
-}
-
-@media (max-width: 520px) {
-    header {
-        padding: 10px;
-    }
-
-    .brand {
-        font-size: 15px;
-    }
-
-    #user-info {
-        max-width: 90px;
-    }
-
-    .toolbar {
-        gap: 6px;
-        padding: 8px;
-    }
-
-    .toolbar button {
-        padding: 9px 10px;
-        font-size: 12px;
-    }
-
-    .editor-shell {
-        padding: 8px;
-    }
-
-    #editor {
-        min-height: 45dvh;
-    }
-
-    .files-panel {
-        margin: 0 8px 8px;
-    }
-
-    .file-size {
-        display: none;
-    }
-}
-</style>
+        .hidden { display: none; }
+    </style>
 </head>
-
 <body>
+<div class="container">
 
-<section id="login-screen">
-    <div class="login-card">
-        <h1>Облачный Блокнот</h1>
-        <p class="muted">Войди через Google, чтобы открыть синхронизируемый редактор.</p>
-
-        <button id="btn-login" class="primary" style="width:100%">
+    <div id="auth-screen">
+        <div style="font-size:48px;margin-bottom:16px;">📝</div>
+        <h2>Облачный Блокнот</h2>
+        <p>Войдите через Google чтобы синхронизировать текст и файлы между устройствами</p>
+        <button id="btn-login">
+            <span class="google-icon">G</span>
             Войти через Google
         </button>
-
-        <div id="login-error"></div>
-    </div>
-</section>
-
-<div id="app">
-    <header>
-        <div class="brand">Облачный Блокнот</div>
-        <div class="header-spacer"></div>
-        <div id="user-info"></div>
-        <button id="btn-logout">Выйти</button>
-    </header>
-
-    <div class="toolbar">
-        <button id="btn-new">Новый</button>
-        <button id="btn-save" class="primary">Сохранить</button>
-        <button id="btn-download">Скачать</button>
-
-        <select id="language-select" aria-label="Язык подсветки">
-            <option value="plain">Обычный текст</option>
-            <option value="javascript">JavaScript</option>
-            <option value="html">HTML</option>
-            <option value="css">CSS</option>
-            <option value="json">JSON</option>
-        </select>
-
-        <span id="save-status">Подключение...</span>
     </div>
 
-    <div id="app-error"></div>
-
-    <main class="editor-shell">
-        <div id="editor"></div>
-    </main>
-
-    <section class="files-panel">
-        <div class="files-header">
-            <strong>Облачные файлы</strong>
-            <button id="btn-upload">Загрузить файл</button>
-            <input id="file-input" type="file" hidden multiple>
+    <div id="app-screen" class="hidden">
+        <div class="header">
+            <div class="logo">
+                <div class="logo-icon">📝</div>
+                <span class="logo-text">Облачный Блокнот</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                <span id="user-info"></span>
+                <button id="btn-logout" title="Выйти">⇥</button>
+            </div>
         </div>
-        <div id="file-list">
-            <div class="empty">Загрузка списка файлов...</div>
+
+        <div class="divider"></div>
+
+        <div id="anim-picker">
+            <button class="anim-btn active" data-anim="none">Без эффекта</button>
+            <button class="anim-btn" data-anim="anim-fade">Fade</button>
+            <button class="anim-btn" data-anim="anim-slide-up">Slide Up</button>
+            <button class="anim-btn" data-anim="anim-scale">Scale</button>
+            <button class="anim-btn" data-anim="anim-glow">Glow</button>
+            <button class="anim-btn" data-anim="anim-bounce">Bounce</button>
+            <button class="anim-btn" data-anim="anim-typewriter">Typewriter</button>
         </div>
-    </section>
+
+        <div class="input-wrapper">
+            <textarea id="real-input" autocomplete="off" autocorrect="off"
+                      autocapitalize="off" spellcheck="false"></textarea>
+            <div id="display-layer" class="empty"></div>
+        </div>
+
+        <div id="sync-status">—</div>
+
+        <!-- Файловый блок -->
+        <div class="upload-row">
+            <button id="btn-upload">
+                <span>📎</span>
+                <span id="upload-label">Прикрепить файл</span>
+            </button>
+            <input type="file" id="file-input">
+        </div>
+
+        <div id="file-section" class="file-section hidden">
+            <div id="file-card" class="file-card">
+                <div class="file-icon" id="file-icon">📄</div>
+                <div class="file-info">
+                    <div class="file-name" id="file-name">—</div>
+                    <div class="file-size" id="file-size">—</div>
+                </div>
+                <div class="file-actions">
+                    <button class="file-btn download" id="btn-file-download" title="Скачать">⬇</button>
+                    <button class="file-btn remove" id="btn-file-remove" title="Убрать файл">✕</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-row">
+            <button class="btn-action" id="btn-copy">Копировать всё</button>
+            <button class="btn-action" id="btn-clear">Очистить всё</button>
+        </div>
+    </div>
 </div>
 
 <script type="module">
-import {
-    initializeApp
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged }
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getDatabase, ref, set, onValue, remove }
+        from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-import {
-    getAuth,
-    GoogleAuthProvider,
-    signInWithPopup,
-    onAuthStateChanged,
-    signOut
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    const firebaseConfig = {
+        apiKey: "AIzaSyC6JayNN_rZcn8o9scI5gBEVKO6xXhQLV4",
+        authDomain: "text-transmission-7aa49.firebaseapp.com",
+        databaseURL: "https://text-transmission-7aa49-default-rtdb.firebaseio.com",
+        projectId: "text-transmission-7aa49",
+        storageBucket: "text-transmission-7aa49.firebasestorage.app",
+        messagingSenderId: "749005357603",
+        appId: "1:749005357603:web:a3d567ce1b91350336a796"
+    };
 
-import {
-    getDatabase,
-    ref,
-    onValue,
-    set,
-    update,
-    remove,
-    push
-} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    const app      = initializeApp(firebaseConfig);
+    const auth     = getAuth(app);
+    const db       = getDatabase(app);
+    const provider = new GoogleAuthProvider();
 
-import { basicSetup } from "https://esm.sh/codemirror@6.0.1?bundle";
-import { EditorView } from "https://esm.sh/@codemirror/view@6.38.6?bundle";
-import { EditorState } from "https://esm.sh/@codemirror/state@6.5.2?bundle";
-import {
-    defaultHighlightStyle,
-    syntaxHighlighting,
-    StreamLanguage
-} from "https://esm.sh/@codemirror/language@6.11.2?bundle";
-import { javascript } from "https://esm.sh/@codemirror/lang-javascript@6.2.4?bundle";
-import { html } from "https://esm.sh/@codemirror/lang-html@6.4.11?bundle";
-import { css } from "https://esm.sh/@codemirror/lang-css@6.3.1?bundle";
-import { json } from "https://esm.sh/@codemirror/lang-json@6.0.2?bundle";
+    const authScreen   = document.getElementById('auth-screen');
+    const appScreen    = document.getElementById('app-screen');
+    const btnLogin     = document.getElementById('btn-login');
+    const btnLogout    = document.getElementById('btn-logout');
+    const btnCopy      = document.getElementById('btn-copy');
+    const btnClear     = document.getElementById('btn-clear');
+    const realInput    = document.getElementById('real-input');
+    const displayLayer = document.getElementById('display-layer');
+    const userInfo     = document.getElementById('user-info');
+    const animPicker   = document.getElementById('anim-picker');
+    const syncStatus   = document.getElementById('sync-status');
 
-/* Firebase configuration */
-const firebaseConfig = {
-    apiKey: "AIzaSyC6JayNN_rZcn8o9scI5gBEVKO6xXhQLV4",
-    authDomain: "text-transmission-7aa49.firebaseapp.com",
-    databaseURL: "https://text-transmission-7aa49-default-rtdb.firebaseio.com",
-    projectId: "text-transmission-7aa49",
-    storageBucket: "text-transmission-7aa49.firebasestorage.app",
-    messagingSenderId: "749005357603",
-    appId: "1:749005357603:web:a3d567ce1b91350336a796"
-};
+    // Файловые элементы
+    const btnUpload       = document.getElementById('btn-upload');
+    const fileInput       = document.getElementById('file-input');
+    const uploadLabel     = document.getElementById('upload-label');
+    const fileSection     = document.getElementById('file-section');
+    const fileNameEl      = document.getElementById('file-name');
+    const fileSizeEl      = document.getElementById('file-size');
+    const fileIconEl      = document.getElementById('file-icon');
+    const btnFileDownload = document.getElementById('btn-file-download');
+    const btnFileRemove   = document.getElementById('btn-file-remove');
 
-const appFirebase = initializeApp(firebaseConfig);
-const auth = getAuth(appFirebase);
-const db = getDatabase(appFirebase);
-const provider = new GoogleAuthProvider();
+    let currentUser    = null;
+    let isTyping       = false;
+    let typingTimeout  = null;
+    let isRemoteUpdate = false;
+    let currentAnim    = 'none';
+    let lastValue      = '';
+    let syncTimeout    = null;
+    let cursorPos      = 0;
+    let selStart       = 0;
+    let selEnd         = 0;
+    let currentFile    = null;
 
-const $ = id => document.getElementById(id);
-
-const loginScreen = $("login-screen");
-const loginButton = $("btn-login");
-const loginError = $("login-error");
-const appScreen = $("app");
-const userInfo = $("user-info");
-const saveStatus = $("save-status");
-const appError = $("app-error");
-const fileInput = $("file-input");
-const fileList = $("file-list");
-const languageSelect = $("language-select");
-
-let currentUser = null;
-let editor = null;
-let currentDocumentId = "main";
-let documentListener = null;
-let filesListener = null;
-let saveTimer = null;
-let applyingRemoteChange = false;
-let lastSavedText = "";
-let saveRevision = 0;
-
-/* Status messages */
-function setStatus(message, type = "") {
-    saveStatus.textContent = message;
-    saveStatus.className = type;
-}
-
-function showAppError(message) {
-    appError.style.display = "block";
-    appError.textContent = message;
-}
-
-function hideAppError() {
-    appError.style.display = "none";
-    appError.textContent = "";
-}
-
-/* Editor language support */
-function getLanguageExtension(language) {
-    switch (language) {
-        case "javascript":
-            return javascript();
-        case "html":
-            return html();
-        case "css":
-            return css();
-        case "json":
-            return json();
-        default:
-            return [];
-    }
-}
-
-function changeLanguage(language) {
-    if (!editor) return;
-
-    const currentText = editor.state.doc.toString();
-    const selection = editor.state.selection.main;
-
-    editor.dispatch({
-        effects: StateEffect.reconfigure.of([
-            basicSetup,
-            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-            EditorView.lineWrapping,
-            editorTheme,
-            getLanguageExtension(language),
-            EditorView.updateListener.of(handleEditorUpdate)
-        ])
-    });
-}
-
-/* CodeMirror theme */
-const editorTheme = EditorView.theme({
-    "&": {
-        height: "100%",
-        color: "#e7eaf0",
-        backgroundColor: "#0f1219"
-    },
-    ".cm-content": {
-        caretColor: "#a99dff",
-        fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-        padding: "12px 0"
-    },
-    ".cm-cursor, .cm-dropCursor": {
-        borderLeftColor: "#a99dff"
-    },
-    "&.cm-focused .cm-selectionBackground, ::selection": {
-        backgroundColor: "#6557bd66"
-    },
-    ".cm-activeLine": {
-        backgroundColor: "#ffffff08"
-    },
-    ".cm-gutters": {
-        backgroundColor: "#11151d",
-        color: "#697386",
-        border: "none"
-    }
-});
-
-import { StateEffect } from "https://esm.sh/@codemirror/state@6.5.2?bundle";
-
-/* Save editor changes */
-function handleEditorUpdate(updateEvent) {
-    if (!updateEvent.docChanged || applyingRemoteChange) return;
-
-    setStatus("Есть изменения...");
-    scheduleSave(updateEvent.state.doc.toString());
-}
-
-function createEditor(initialText = "") {
-    const extensions = [
-        basicSetup,
-        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        EditorView.lineWrapping,
-        editorTheme,
-        getLanguageExtension(languageSelect.value),
-        EditorView.updateListener.of(handleEditorUpdate)
-    ];
-
-    const state = EditorState.create({
-        doc: initialText,
-        extensions
+    // ── Выбор анимации ────────────────────────────────────────────────────────
+    animPicker.addEventListener('click', (e) => {
+        const btn = e.target.closest('.anim-btn');
+        if (!btn) return;
+        document.querySelectorAll('.anim-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentAnim = btn.dataset.anim;
     });
 
-    editor = new EditorView({
-        state,
-        parent: $("editor")
-    });
-}
-
-/* Replace editor text without triggering a save loop */
-function setEditorText(text) {
-    if (!editor) {
-        createEditor(text);
-        return;
-    }
-
-    if (editor.state.doc.toString() === text) return;
-
-    applyingRemoteChange = true;
-
-    editor.dispatch({
-        changes: {
-            from: 0,
-            to: editor.state.doc.length,
-            insert: text
+    // ── Статус ────────────────────────────────────────────────────────────────
+    function setStatus(text, cls) {
+        syncStatus.textContent = text;
+        syncStatus.className = cls || '';
+        clearTimeout(syncTimeout);
+        if (cls === 'saved') {
+            syncTimeout = setTimeout(() => {
+                syncStatus.textContent = '—';
+                syncStatus.className = '';
+            }, 2000);
         }
+    }
+
+    // ── Получить позицию и выделение ──────────────────────────────────────────
+    function getSelectionState() {
+        return {
+            cursor: realInput.selectionStart,
+            selStart: realInput.selectionStart,
+            selEnd: realInput.selectionEnd
+        };
+    }
+
+    // ── Рендер display-layer ──────────────────────────────────────────────────
+    function renderDisplay(newText, animStart, animEnd) {
+        const sel = getSelectionState();
+        cursorPos = sel.cursor;
+        selStart = sel.selStart;
+        selEnd = sel.selEnd;
+
+        if (newText === '') {
+            displayLayer.classList.add('empty');
+        } else {
+            displayLayer.classList.remove('empty');
+        }
+
+        const hasSelection = selStart !== selEnd;
+        const hasAnim = animStart !== -1 && animEnd !== -1 && currentAnim !== 'none';
+
+        if (!hasAnim && !hasSelection && cursorPos === newText.length) {
+            displayLayer.textContent = newText;
+            if (document.activeElement === realInput) {
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                displayLayer.appendChild(cursor);
+            }
+            return;
+        }
+
+        displayLayer.innerHTML = '';
+
+        for (let i = 0; i < newText.length; i++) {
+            const ch = newText[i];
+            const inSelection = hasSelection && i >= selStart && i < selEnd;
+            const inAnim = hasAnim && i >= animStart && i < animEnd && (animEnd - animStart) <= 20;
+
+            let node;
+            if (inAnim) {
+                node = document.createElement('span');
+                node.className = `char ${currentAnim}`;
+                node.textContent = ch;
+            } else if (inSelection) {
+                node = document.createElement('span');
+                node.className = 'sel';
+                node.textContent = ch;
+            } else {
+                node = document.createTextNode(ch);
+            }
+            displayLayer.appendChild(node);
+
+            if (cursorPos === i + 1 && !hasSelection && document.activeElement === realInput) {
+                const cursor = document.createElement('span');
+                cursor.className = 'cursor';
+                displayLayer.appendChild(cursor);
+            }
+        }
+
+        if (cursorPos === 0 && !hasSelection && document.activeElement === realInput) {
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            displayLayer.insertBefore(cursor, displayLayer.firstChild);
+        }
+
+        if (newText === '' && !hasSelection && document.activeElement === realInput) {
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+            displayLayer.appendChild(cursor);
+        }
+    }
+
+    // ── Тихая загрузка из Firebase ────────────────────────────────────────────
+    function loadTextSilently(text) {
+        isRemoteUpdate = true;
+        realInput.value = text;
+        lastValue = text;
+        cursorPos = text.length;
+        displayLayer.textContent = text;
+        if (text === '') {
+            displayLayer.classList.add('empty');
+        } else {
+            displayLayer.classList.remove('empty');
+        }
+        isRemoteUpdate = false;
+    }
+
+    // ── Сохранение текста ─────────────────────────────────────────────────────
+    function saveText(text) {
+        if (!currentUser) return;
+        isTyping = true;
+        setStatus('Сохранение...', 'saving');
+        set(ref(db, 'users/' + currentUser.uid + '/text'), text)
+            .then(() => setStatus('Сохранено ✓', 'saved'))
+            .catch(e => { console.error(e); setStatus('Ошибка', ''); });
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => { isTyping = false; }, 1000);
+    }
+
+    // ── Обработка ввода ───────────────────────────────────────────────────────
+    realInput.addEventListener('input', () => {
+        if (isRemoteUpdate) return;
+
+        const newValue = realInput.value;
+        if (newValue === lastValue) return;
+
+        const oldValue = lastValue;
+        lastValue = newValue;
+
+        let start = 0;
+        while (start < oldValue.length && start < newValue.length && oldValue[start] === newValue[start]) {
+            start++;
+        }
+        let oldEnd = oldValue.length;
+        let newEnd = newValue.length;
+        while (oldEnd > start && newEnd > start && oldValue[oldEnd-1] === newValue[newEnd-1]) {
+            oldEnd--;
+            newEnd--;
+        }
+
+        const insertedLen  = newEnd - start;
+        const deletedCount = oldEnd - start;
+
+        const shouldAnimate = deletedCount === 0 && insertedLen > 0 && insertedLen <= 20;
+
+        const aStart = shouldAnimate ? start : -1;
+        const aEnd   = shouldAnimate ? newEnd : -1;
+
+        renderDisplay(newValue, aStart, aEnd);
+        saveText(newValue);
     });
 
-    applyingRemoteChange = false;
-}
+    displayLayer.addEventListener('click', () => realInput.focus());
 
-/* Database document path */
-function getDocumentRef() {
-    return ref(
-        db,
-        `users/${currentUser.uid}/documents/${currentDocumentId}`
-    );
-}
+    realInput.addEventListener('scroll', () => {
+        displayLayer.scrollTop = realInput.scrollTop;
+    });
 
-function getFilesRef() {
-    return ref(db, `users/${currentUser.uid}/files`);
-}
+    realInput.addEventListener('focus', () => {
+        displayLayer.classList.add('focused');
+        renderDisplay(lastValue, -1, -1);
+    });
+    realInput.addEventListener('blur', () => {
+        displayLayer.classList.remove('focused');
+        renderDisplay(lastValue, -1, -1);
+    });
 
-/* Save with debounce */
-function scheduleSave(text) {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => saveDocument(text), 700);
-}
-
-async function saveDocument(text = editor?.state.doc.toString() ?? "") {
-    if (!currentUser) return;
-
-    const revision = ++saveRevision;
-    setStatus("Сохранение...");
-
-    try {
-        await set(getDocumentRef(), {
-            text,
-            updatedAt: Date.now(),
-            language: languageSelect.value
+    ['keydown', 'keyup', 'click', 'select', 'selectionchange'].forEach(evt => {
+        realInput.addEventListener(evt, () => {
+            if (!isRemoteUpdate) {
+                requestAnimationFrame(() => {
+                    renderDisplay(lastValue, -1, -1);
+                });
+            }
         });
-
-        if (revision === saveRevision) {
-            lastSavedText = text;
-            setStatus("Сохранено", "saved");
-        }
-    } catch (error) {
-        console.error("Save error:", error);
-        setStatus("Ошибка сохранения", "error");
-        showAppError("Не удалось сохранить документ: " + error.message);
-    }
-}
-
-/* Subscribe to cloud document */
-function subscribeToDocument() {
-    if (documentListener) {
-        documentListener();
-        documentListener = null;
-    }
-
-    setStatus("Загрузка...");
-
-    documentListener = onValue(
-        getDocumentRef(),
-        snapshot => {
-            const data = snapshot.val();
-
-            if (!data) {
-                setEditorText("");
-                lastSavedText = "";
-                setStatus("Новый документ");
-                return;
-            }
-
-            const remoteText = typeof data.text === "string" ? data.text : "";
-
-            if (remoteText !== editor?.state.doc.toString()) {
-                setEditorText(remoteText);
-            }
-
-            lastSavedText = remoteText;
-
-            if (data.language && data.language !== languageSelect.value) {
-                languageSelect.value = data.language;
-                applyLanguage(data.language);
-            }
-
-            setStatus("Синхронизировано", "saved");
-            hideAppError();
-        },
-        error => {
-            console.error("Document listener error:", error);
-            setStatus("Ошибка подключения", "error");
-            showAppError("Ошибка чтения документа: " + error.message);
-        }
-    );
-}
-
-function applyLanguage(language) {
-    if (!editor) return;
-
-    const currentText = editor.state.doc.toString();
-
-    const state = EditorState.create({
-        doc: currentText,
-        extensions: [
-            basicSetup,
-            syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-            EditorView.lineWrapping,
-            editorTheme,
-            getLanguageExtension(language),
-            EditorView.updateListener.of(handleEditorUpdate)
-        ]
     });
 
-    editor.setState(state);
-}
+    // ════════════════════════════════════════════════════════════════════════
+    //  ФАЙЛЫ — только base64 через Realtime Database (бесплатно, Spark plan)
+    // ════════════════════════════════════════════════════════════════════════
 
-languageSelect.addEventListener("change", async () => {
-    applyLanguage(languageSelect.value);
+    function getFileIcon(type, name) {
+        if (type?.startsWith('image/')) return '🖼';
+        if (type?.startsWith('video/')) return '🎬';
+        if (type?.startsWith('audio/')) return '🎵';
+        if (type?.startsWith('text/') || name?.endsWith('.txt') || name?.endsWith('.md')) return '📝';
+        if (name?.endsWith('.pdf')) return '📕';
+        if (name?.endsWith('.zip') || name?.endsWith('.rar') || name?.endsWith('.7z')) return '📦';
+        if (name?.endsWith('.doc') || name?.endsWith('.docx')) return '📘';
+        if (name?.endsWith('.xls') || name?.endsWith('.xlsx')) return '📗';
+        if (name?.endsWith('.ppt') || name?.endsWith('.pptx')) return '📙';
+        if (name?.endsWith('.js') || name?.endsWith('.html') || name?.endsWith('.css') || name?.endsWith('.py')) return '💻';
+        return '📄';
+    }
 
-    if (currentUser) {
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' Б';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' КБ';
+        if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' МБ';
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' ГБ';
+    }
+
+    function resetUploadBtn() {
+        btnUpload.classList.remove('uploading', 'error');
+        uploadLabel.textContent = currentFile ? 'Заменить файл' : 'Прикрепить файл';
+    }
+
+    function showFile(fileData) {
+        if (!fileData) {
+            currentFile = null;
+            fileSection.classList.add('hidden');
+            resetUploadBtn();
+            return;
+        }
+        currentFile = fileData;
+        fileNameEl.textContent = fileData.name;
+        fileSizeEl.textContent = formatSize(fileData.size);
+        fileIconEl.textContent = getFileIcon(fileData.type, fileData.name);
+        fileSection.classList.remove('hidden');
+        uploadLabel.textContent = 'Заменить файл';
+    }
+
+    // Конвертация файл → base64
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
+
+    // ── Загрузка файла (только base64 в RTDB) ────────────────────────────────
+    async function uploadFile(file) {
+        if (!currentUser) return;
+
+        btnUpload.classList.add('uploading');
+        uploadLabel.textContent = 'Загрузка...';
+        setStatus('Загрузка файла...', 'saving');
+
         try {
-            await update(getDocumentRef(), {
-                language: languageSelect.value,
-                updatedAt: Date.now()
-            });
-        } catch (error) {
-            console.error(error);
-            showAppError("Не удалось сохранить язык: " + error.message);
-        }
-    }
-});
+            const base64 = await fileToBase64(file);
 
-/* Create new document */
-$("btn-new").addEventListener("click", async () => {
-    if (!currentUser) return;
-
-    const confirmed = confirm("Создать новый документ? Текущий документ останется в облаке.");
-    if (!confirmed) return;
-
-    currentDocumentId = push(
-        ref(db, `users/${currentUser.uid}/documents`)
-    ).key;
-
-    languageSelect.value = "plain";
-    setEditorText("");
-    lastSavedText = "";
-
-    await saveDocument("");
-    subscribeToDocument();
-});
-
-/* Manual save */
-$("btn-save").addEventListener("click", () => {
-    clearTimeout(saveTimer);
-    saveDocument();
-});
-
-/* Download current text */
-$("btn-download").addEventListener("click", () => {
-    const text = editor?.state.doc.toString() ?? "";
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-
-    a.href = url;
-    a.download = "document.txt";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-});
-
-/* Correct File -> Base64 conversion */
-function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(
-            reader.error || new Error("Не удалось прочитать файл")
-        );
-
-        reader.readAsDataURL(file);
-    });
-}
-
-/* Upload file to Realtime Database */
-async function uploadFile(file) {
-    if (!currentUser) {
-        throw new Error("Сначала войди в аккаунт.");
-    }
-
-    const base64 = await fileToBase64(file);
-    const fileRef = push(getFilesRef());
-
-    await set(fileRef, {
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        size: file.size,
-        data: base64,
-        uploadedAt: Date.now()
-    });
-}
-
-/* File upload controls */
-$("btn-upload").addEventListener("click", () => fileInput.click());
-
-fileInput.addEventListener("change", async () => {
-    const files = Array.from(fileInput.files || []);
-    if (!files.length) return;
-
-    $("btn-upload").disabled = true;
-    hideAppError();
-
-    try {
-        for (const file of files) {
-            await uploadFile(file);
-        }
-
-        setStatus("Файлы загружены", "saved");
-    } catch (error) {
-        console.error("Upload error:", error);
-        showAppError("Не удалось загрузить файл: " + error.message);
-    } finally {
-        $("btn-upload").disabled = false;
-        fileInput.value = "";
-    }
-});
-
-/* Render cloud files */
-function subscribeToFiles() {
-    if (filesListener) {
-        filesListener();
-        filesListener = null;
-    }
-
-    filesListener = onValue(
-        getFilesRef(),
-        snapshot => {
-            fileList.replaceChildren();
-
-            const files = snapshot.val();
-
-            if (!files) {
-                const empty = document.createElement("div");
-                empty.className = "empty";
-                empty.textContent = "Файлов пока нет.";
-                fileList.appendChild(empty);
-                return;
+            // Лимит Firebase RTDB ~10 МБ на узел
+            if (base64.length > 9 * 1024 * 1024) {
+                throw new Error('Файл слишком большой. Максимум ~6-7 МБ на бесплатном плане.');
             }
 
-            for (const [id, file] of Object.entries(files)) {
-                const row = document.createElement("div");
-                row.className = "file-item";
+            const fileData = {
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                data: base64,
+                uploadedAt: Date.now()
+            };
 
-                const name = document.createElement("div");
-                name.className = "file-name";
-                name.textContent = file.name || "Без названия";
-
-                const size = document.createElement("div");
-                size.className = "file-size";
-                size.textContent = formatBytes(file.size || 0);
-
-                const download = document.createElement("button");
-                download.textContent = "Скачать";
-                download.addEventListener("click", () => {
-                    downloadStoredFile(file);
-                });
-
-                const removeButton = document.createElement("button");
-                removeButton.textContent = "Удалить";
-                removeButton.addEventListener("click", async () => {
-                    if (!confirm(`Удалить файл «${file.name || "Без названия"}»?`)) {
-                        return;
-                    }
-
-                    try {
-                        await remove(ref(db, `users/${currentUser.uid}/files/${id}`));
-                    } catch (error) {
-                        console.error(error);
-                        showAppError("Не удалось удалить файл: " + error.message);
-                    }
-                });
-
-                row.append(name, size, download, removeButton);
-                fileList.appendChild(row);
-            }
-        },
-        error => {
-            console.error("Files listener error:", error);
-            showAppError("Не удалось загрузить список файлов: " + error.message);
+            await set(ref(db, 'users/' + currentUser.uid + '/file'), fileData);
+            showFile(fileData);
+            setStatus('Файл загружен ✓', 'saved');
+        } catch (err) {
+            console.error(err);
+            btnUpload.classList.add('error');
+            uploadLabel.textContent = 'Ошибка';
+            setStatus(err.message || 'Ошибка загрузки', '');
+            setTimeout(resetUploadBtn, 3000);
         }
-    );
-}
-
-function formatBytes(bytes) {
-    if (!Number.isFinite(bytes) || bytes <= 0) return "0 Б";
-
-    const units = ["Б", "КБ", "МБ", "ГБ"];
-    const index = Math.min(
-        Math.floor(Math.log(bytes) / Math.log(1024)),
-        units.length - 1
-    );
-
-    return `${(bytes / Math.pow(1024, index)).toFixed(index ? 1 : 0)} ${units[index]}`;
-}
-
-/* Download a stored Base64 file */
-function downloadStoredFile(file) {
-    if (!file.data) {
-        showAppError("У файла отсутствуют данные.");
-        return;
     }
 
-    try {
-        const a = document.createElement("a");
-        a.href = file.data;
-        a.download = file.name || "download";
+    btnUpload.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        uploadFile(file);
+        fileInput.value = '';
+    });
+
+    // ── Скачать файл ────────────────────────────────────────────────────────
+    btnFileDownload.addEventListener('click', () => {
+        if (!currentFile?.data) return;
+        const a = document.createElement('a');
+        a.href = currentFile.data;
+        a.download = currentFile.name;
         document.body.appendChild(a);
         a.click();
-        a.remove();
-    } catch (error) {
-        console.error(error);
-        showAppError("Не удалось скачать файл: " + error.message);
-    }
-}
+        document.body.removeChild(a);
+    });
 
-/* Sign in */
-loginButton.addEventListener("click", async () => {
-    loginButton.disabled = true;
-    loginError.textContent = "";
+    // ── Убрать файл ─────────────────────────────────────────────────────────
+    btnFileRemove.addEventListener('click', async () => {
+        if (!currentUser || !currentFile) return;
 
-    try {
-        await signInWithPopup(auth, provider);
-    } catch (error) {
-        console.error("Login error:", error);
-
-        let message = error.message || "Неизвестная ошибка";
-
-        if (error.code === "auth/popup-blocked") {
-            message = "Браузер заблокировал окно входа. Разреши всплывающие окна.";
-        } else if (error.code === "auth/unauthorized-domain") {
-            message = "Домен сайта не разрешён в Firebase Authentication. Добавь домен в Authorized domains.";
-        } else if (error.code === "auth/operation-not-allowed") {
-            message = "В Firebase Console не включён способ входа через Google.";
-        } else if (error.code === "auth/popup-closed-by-user") {
-            message = "Окно входа закрыто до завершения авторизации.";
+        setStatus('Удаление...', 'saving');
+        try {
+            await remove(ref(db, 'users/' + currentUser.uid + '/file'));
+            showFile(null);
+            setStatus('Файл удалён', 'saved');
+        } catch (err) {
+            console.error(err);
+            setStatus('Ошибка удаления', '');
         }
+    });
 
-        loginError.textContent = message;
-    } finally {
-        loginButton.disabled = false;
-    }
-});
+    // ════════════════════════════════════════════════════════════════════════
+    //  AUTH
+    // ════════════════════════════════════════════════════════════════════════
 
-/* Sign out */
-$("btn-logout").addEventListener("click", async () => {
-    try {
-        await signOut(auth);
-    } catch (error) {
-        console.error(error);
-        showAppError("Не удалось выйти: " + error.message);
-    }
-});
+    onAuthStateChanged(auth, (user) => {
+        if (user) {
+            currentUser = user;
+            userInfo.textContent = user.email;
+            authScreen.classList.add('hidden');
+            appScreen.classList.remove('hidden');
 
-/* Authentication state */
-onAuthStateChanged(auth, async user => {
-    currentUser = user;
+            // Текст
+            const textRef = ref(db, 'users/' + user.uid + '/text');
+            onValue(textRef, (snapshot) => {
+                const data = snapshot.val() ?? '';
+                if (!isTyping) loadTextSilently(data);
+            });
 
-    if (!user) {
-        loginScreen.style.display = "flex";
-        appScreen.style.display = "none";
-        userInfo.textContent = "";
-
-        if (documentListener) {
-            documentListener();
-            documentListener = null;
+            // Файл
+            const fileRef = ref(db, 'users/' + user.uid + '/file');
+            onValue(fileRef, (snapshot) => {
+                const data = snapshot.val();
+                showFile(data);
+            });
+        } else {
+            currentUser = null;
+            authScreen.classList.remove('hidden');
+            appScreen.classList.add('hidden');
+            realInput.value = '';
+            displayLayer.textContent = '';
+            displayLayer.classList.add('empty');
+            lastValue = '';
+            showFile(null);
         }
+    });
 
-        if (filesListener) {
-            filesListener();
-            filesListener = null;
-        }
+    // ── Кнопка Копировать ─────────────────────────────────────────────────────
+    btnCopy.addEventListener('click', () => {
+        if (!realInput.value) return;
+        navigator.clipboard.writeText(realInput.value).then(() => {
+            btnCopy.textContent = '✓ Скопировано';
+            btnCopy.classList.add('copied');
+            setTimeout(() => {
+                btnCopy.textContent = 'Копировать всё';
+                btnCopy.classList.remove('copied');
+            }, 1500);
+        }).catch(e => console.error(e));
+    });
 
-        if (editor) {
-            editor.destroy();
-            editor = null;
-        }
+    // ── Кнопка Очистить ───────────────────────────────────────────────────────
+    btnClear.addEventListener('click', () => {
+        if (!realInput.value) return;
+        realInput.value = '';
+        lastValue = '';
+        displayLayer.textContent = '';
+        displayLayer.classList.add('empty');
+        saveText('');
+        realInput.focus();
+    });
 
-        $("editor").replaceChildren();
-        return;
-    }
-
-    loginScreen.style.display = "none";
-    appScreen.style.display = "flex";
-    userInfo.textContent = user.email || user.displayName || "Аккаунт";
-
-    hideAppError();
-
-    if (!editor) {
-        createEditor("");
-    }
-
-    currentDocumentId = "main";
-
-    subscribeToDocument();
-    subscribeToFiles();
-});
+    // ── Логин / Выход ─────────────────────────────────────────────────────────
+    btnLogin.addEventListener('click', () => {
+        signInWithPopup(auth, provider).catch(e => console.error(e));
+    });
+    btnLogout.addEventListener('click', () => {
+        signOut(auth).catch(e => console.error(e));
+    });
 </script>
-
 </body>
-</html>
+    </html>
